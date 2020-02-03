@@ -1,0 +1,5 @@
+build/*
+!/build/EO107_2.bin
+!/build/EO107_2.hex
+.vscode/ipch
+core
