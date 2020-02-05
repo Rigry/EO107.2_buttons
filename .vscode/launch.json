@@ -5,11 +5,11 @@
    "version": "0.2.0",
    "configurations": [
       { 
-         "name": "EO107_1",
+         "name": "EO107_2",
          "type": "cppdbg",
          "request": "launch",
          "miDebuggerPath": "arm-none-eabi-gdb",
-         "program": "${workspaceRoot}/build/EO107_1.elf",
+         "program": "${workspaceRoot}/build/EO107_2.elf",
          "miDebuggerServerAddress": "localhost:4242",
          "MIMode": "gdb",
          "cwd": "${workspaceRoot}"

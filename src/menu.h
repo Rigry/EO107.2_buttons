@@ -48,13 +48,17 @@ struct Menu : TickSubscriber {
       while(not hd44780.init_done()){}
    }
 
-   Main_screen main_screen {
+   Main_screen<Regs> main_screen {
           lcd, buttons_events
       //   , Enter_event  { [this](auto c){enter.set_click_callback(c);}}
         , Out_callback { [this]{ change_screen(main_select); }}
-        , modbus_master_regs.frequency
-        , modbus_master_regs.work_frequency
-        , modbus_master_regs.temperatura
+        , modbus_master_regs
+      //   , modbus_master_regs.frequency_03
+      //   , modbus_master_regs.frequency_16
+      //   , modbus_master_regs.work_frequency_03
+      //   , modbus_master_regs.temperatura_03
+      //   , modbus_master_regs.current_03
+      //   , modbus_master_regs.flags_03
    };
 
     Select_screen<5> main_select {
@@ -181,7 +185,7 @@ struct Menu : TickSubscriber {
       , Out_callback  { [this]{ change_screen(temp_select); }}
       , "Текущая темпер."
       , " С"
-      , modbus_master_regs.temperatura
+      , modbus_master_regs.temperatura_03
    };
    
    uint8_t temperatura{flash.temperatura};
@@ -193,7 +197,9 @@ struct Menu : TickSubscriber {
       , Min<uint8_t>{0}, Max<uint8_t>{100}
       , Out_callback    { [this]{ change_screen(temp_select); }}
       , Enter_callback  { [this]{ 
-         flash.temperatura = temperatura;
+         flash.temperatura 
+            = modbus_master_regs.max_temp_16
+            = temperatura;
             change_screen(temp_select); }}
    };
 
@@ -206,7 +212,9 @@ struct Menu : TickSubscriber {
       , Min<uint8_t>{0}, Max<uint8_t>{100}
       , Out_callback    { [this]{ change_screen(temp_select); }}
       , Enter_callback  { [this]{ 
-         flash.recovery = recovery;
+         flash.recovery 
+            = modbus_master_regs.recovery_temp_16
+            = recovery;
             change_screen(temp_select); }}
    };
 

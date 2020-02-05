@@ -9,7 +9,8 @@
 #include "literals.h"
 #include "button.h"
 #include "menu.h"
-#include "communication.h"
+#include "flash.h"
+#include "modbus_master.h"
 
 using TX_master  = mcu::PA9;
 using RX_master  = mcu::PA10;
@@ -70,14 +71,53 @@ int main()
    decltype(auto) led_green = Pin::make<LED_green, mcu::PinMode::Output>();
    decltype(auto) led_red   = Pin::make<LED_red, mcu::PinMode::Output>();
 
-   // auto us_on = Button<Enter>();
+   struct Flags {
+      bool on            :1; 
+      bool search        :1;
+      bool manual        :1;
+      bool manual_tune   :1;
+      bool overheat      :1;
+      bool no_load       :1;
+      bool overload      :1;
+      bool connect       :1;
+      uint16_t           :8; //Bits 11:2 res: Reserved, must be kept cleared
+      bool is_alarm() { return overheat or no_load or overload; }
+   };
 
-   struct Regs {
-      Register<1, Modbus_function::write_16, 4> frequency;
-      Register<1, Modbus_function::write_16, 5> work_frequency;
-
-      Register<1, Modbus_function::read_03, 14> temperatura;
+   struct {
+      // регистры на запись
+      // Register<1, Modbus_function::write_16, 0> uart_set;
+      // Register<1, Modbus_function::write_16, 1> modbus_address;
+      // Register<1, Modbus_function::write_16, 4>  frequency_16;
+      // Register<1, Modbus_function::write_16, 5>  work_frequency_16;
+      // Register<1, Modbus_function::write_16, 6>  power_16;
+      // Register<1, Modbus_function::write_16, 7>  max_current_16;
+      Register<1, Modbus_function::write_16, 8>  max_temp_16;
+      Register<1, Modbus_function::write_16, 9>  recovery_temp_16;
+      Register<1, Modbus_function::write_16, 10, Flags> flags_16;
+      // регистры на чтение
+      Register<1, Modbus_function::read_03, 4>  power_03;
+      Register<1, Modbus_function::read_03, 5>  duty_cycle_03;
+      Register<1, Modbus_function::read_03, 6>  work_frequency_03;
+      Register<1, Modbus_function::read_03, 7>  frequency_03;
+      // Register<1, Modbus_function::read_03, 8>  m_resonance_03;
+      // Register<1, Modbus_function::read_03, 9>  a_resonance_03;
+      Register<1, Modbus_function::read_03, 10> current_03;
+      Register<1, Modbus_function::read_03, 11> max_current_03;
+      Register<1, Modbus_function::read_03, 12> a_current_03;
+      Register<1, Modbus_function::read_03, 13> m_current_03;
+      Register<1, Modbus_function::read_03, 14> temperatura_03;
+      Register<1, Modbus_function::read_03, 15> max_temp_03;
+      Register<1, Modbus_function::read_03, 16> recovery_temp_03;
+      Register<1, Modbus_function::read_03, 17, Flags> flags_03;
    } modbus_master_regs;
+
+   modbus_master_regs.max_temp_16       = flash.temperatura;
+   modbus_master_regs.recovery_temp_16  = flash.recovery;
+   // modbus_master_regs.work_frequency_16 = flash.work_frequency;
+   // modbus_master_regs.max_current_16    = flash.max_current;
+
+   modbus_master_regs.flags_16.disable = true;
 
    decltype(auto) modbus_master = make_modbus_master <
           mcu::Periph::USART1
@@ -86,53 +126,13 @@ int main()
         , RTS_master
     > (100_ms, flash.uart_set, modbus_master_regs);
 
-   // volatile decltype(auto) modbus = Modbus_slave<In_regs, Out_regs, coils_qty>
-   //               ::make<mcu::Periph::USART1, TX, RX, RTS>
-   //                     (flash.modbus_address, flash.uart_set);
-
-   // auto& work_flags = modbus.outRegs.flags;
-
-   // управление по модбас
-   // modbus.force_single_coil_05[0] = [&](bool on) {
-   //    if (on)
-   //       work_flags.on = true;
-   //    if (not on)
-   //       work_flags.on = false;
-   // };
-
-   // modbus.force_single_coil_05[1] = [&](bool on) {
-   //    if (on)
-   //       flash.search = true;
-   //    if (not on)
-   //       flash.search = false;
-   // };
-
-   // #define ADR(reg) GET_ADR(In_regs, reg)
-   // modbus.outRegs.device_code       = 9;
-   // modbus.outRegs.factory_number    = flash.factory_number;
-   // modbus.outRegs.modbus_address    = flash.modbus_address;
-   // modbus.outRegs.uart_set          = flash.uart_set;    
-   // modbus.arInRegsMax[ADR(uart_set)]= 0b11111111;
-   // modbus.inRegsMin.modbus_address  = 1;
-   // modbus.inRegsMax.modbus_address  = 255;
-   
-   // volatile decltype(auto) pwm = PWM::make<mcu::Periph::TIM3, PWM_pin>(490);
    volatile decltype(auto) encoder = Encoder::make<mcu::Periph::TIM8, mcu::PC6, mcu::PC7, true>();
 
-   using Flash  = decltype(flash);
-   // using Master = Modbus_master<Regs>;
-   // using Modbus = Modbus_slave<In_regs, Out_regs, coils_qty>;
-   // using Generator = Generator<Flash>;
-
-   // Generator generator {adc, pwm, led_green, led_red, work_flags, flash};
-
-   Communication<Regs> communication{modbus_master_regs};
-
+   // using Flash  = decltype(flash);
 
    auto up    = Button<Right>();
    auto down  = Button<Left>();
    auto enter = Button<Enter>();
-   enter.set_down_callback([&]{flash.factory_number = 10;});
    constexpr auto hd44780_pins = HD44780_pins<RS, RW, E, DB4, DB5, DB6, DB7>{};
    [[maybe_unused]] auto menu = Menu (
       hd44780_pins, encoder, up, down, enter
@@ -142,7 +142,6 @@ int main()
    
    while(1){
       modbus_master();
-      communication();
       __WFI();
    }
 }

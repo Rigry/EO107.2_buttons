@@ -59,15 +59,18 @@ constexpr std::string_view deviation_to_string(int i) {
     return deviation[i];
 }
 
-// template <class function>
+template <class Regs>
 struct Main_screen : Screen {
    String_buffer& lcd;
    Buttons_events eventers;
    Callback<> out_callback;
-   uint16_t& frequency;
-   uint16_t& work_frequency;
-   uint16_t& temperatura;
-   // uint16_t& current;
+   Regs& modbus_master_regs;
+//    uint16_t& frequency;
+//    uint16_t& frequency_16;
+//    uint16_t& work_frequency;
+//    uint16_t& temperatura;
+//    uint16_t& current;
+//    Flags& flags;
    // uint16_t& cur;
    // Flags& flags;
 
@@ -75,37 +78,38 @@ struct Main_screen : Screen {
         String_buffer& lcd
       , Buttons_events eventers
       , Out_callback out_callback
-      , uint16_t& frequency
-      , uint16_t& work_frequency
-      , uint16_t& temperatura
-      // , uint16_t& current
-      // , uint16_t& cur
-      // , Flags& flags
+      , Regs& modbus_master_regs
+    //   , uint16_t& frequency
+    //   , uint16_t& frequency_16
+    //   , uint16_t& work_frequency
+    //   , uint16_t& temperatura
+    //   , uint16_t& current
+    //   , Flags& flags
       
    ) : lcd          {lcd}
      , eventers     {eventers}
      , out_callback {out_callback.value}
-     , frequency    {frequency}
-     , work_frequency {work_frequency}
-     , temperatura  {temperatura}
-   //   , current      {current}
-   //   , cur          {cur}
-   //   , flags        {flags}
+     , modbus_master_regs {modbus_master_regs}
+    //  , frequency    {frequency}
+    //  , frequency_16 {frequency_16}
+    //  , work_frequency {work_frequency}
+    //  , temperatura  {temperatura}
+    //  , current      {current}
+    //  , flags        {flags}
    {}
 
    void init() override {
-      // eventers.enter ([this]{ flags.on ^= 1;});
-      // eventers.up    ([this]{ pwm.frequency += (flags.manual_tune and flags.search) or flags.manual ?  10 : 0;});
-      // eventers.down  ([this]{ pwm.frequency += (flags.manual_tune and flags.search) or flags.manual ? -10 : 0;});
-      // eventers.out   ([this]{ out_callback(); });
+    //   eventers.enter ([this]{ flags.on ^= 1;});
+    //   eventers.up    ([this]{ modbus_master_regs.frequency_16 += /*(modbus_master_regs.flags_03.manual_tune and modbus_master_regs.flags_03.search) or modbus_master_regs.flags_03.manual ? */ 10;});
+    //   eventers.down  ([this]{ modbus_master_regs.frequency_16 += /*(modbus_master_regs.flags_03.manual_tune and modbus_master_regs.flags_03.search) or modbus_master_regs.flags_03.manual ? */-10;});
+      eventers.out   ([this]{ out_callback(); });
       lcd.clear();
       lcd.line(0) << "F=";
       lcd.line(0).cursor(11) << "P=";
       lcd.line(1) << "I=";
-      lcd.line(1).cursor(10).width(2) << temperatura << "C";
-      // lcd.line(1).cursor(9) << cur;
-      // lcd.line(1).cursor(14) << ::info[this->flags.manual_tune];
-      // lcd.line(1).cursor(15) << ::info[this->flags.manual];
+      lcd.line(1).cursor(10).width(2) << modbus_master_regs.temperatura_03 << "C";
+    //   lcd.line(1).cursor(14) << ::info[this->flags.manual_tune];
+    //   lcd.line(1).cursor(15) << ::info[this->flags.manual];
    }
 
    void deinit() override {
@@ -116,16 +120,15 @@ struct Main_screen : Screen {
    }
 
    void draw() override {
-      // lcd.line(0).cursor(2).div_1000(pwm.frequency) << "кГц";
+      lcd.line(0).cursor(2).div_1000(modbus_master_regs.frequency_03) << "кГц";
       // lcd.line(0).cursor(13).width(2) << (pwm.duty_cycle / 5) << '%';
-      lcd.line(1).cursor(10).width(2) << temperatura << "C ";
-      // lcd.line(1).cursor(8).div_1000(cur);
-      // lcd.line(1).cursor(14) << ::info[this->flags.manual_tune];
-      // lcd.line(1).cursor(15) << ::info[this->flags.manual];
+      lcd.line(1).cursor(10).width(2) << modbus_master_regs.temperatura_03 << "C ";
+    //   lcd.line(1).cursor(14) << ::info[this->flags.manual_tune];
+    //   lcd.line(1).cursor(15) << ::info[this->flags.manual];
       
-      // if (not flags.is_alarm()) {
-      //    // lcd.line(1) << "I="; lcd.line(1).cursor(2).div_1000(current) << "А ";
-      //    return;
+    //   if (/*not flags.is_alarm()*/1) {
+    //      lcd.line(1) << "I="; lcd.line(1).cursor(2).div_1000(current) << "А ";
+    //      return;}
       // } else if (flags.overheat) {
       //    lcd.line(1) << "OVERHAET";
       //    return;
