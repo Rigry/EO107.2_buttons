@@ -8,7 +8,7 @@
 #include "button.h"
 #include "encoder_rotary.h"
 
-template<class Pins, class Flash_data, class Regs, size_t qty_lines = 4, size_t size_line = 20>
+template<class Pins, class Flash_data, class Regs, class Flags, class UART, size_t qty_lines = 4, size_t size_line = 20>
 struct Menu : TickSubscriber {
    String_buffer lcd {};
    HD44780& hd44780 {HD44780::make(Pins{}, lcd.get_buffer())};
@@ -18,6 +18,10 @@ struct Menu : TickSubscriber {
    Button_event& enter;
    Flash_data&   flash;
    Regs& modbus_master_regs;
+   Flags& flags_03;
+   Flags& flags_16;
+   UART& uart_set_03;
+   UART& uart_set_16;
 
 
    Screen* current_screen {&main_screen};
@@ -40,47 +44,62 @@ struct Menu : TickSubscriber {
       , Button_event& enter
       , Flash_data&   flash
       , Regs& modbus_master_regs
+      , Flags& flags_03
+      , Flags& flags_16
+      , UART& uart_set_03
+      , UART& uart_set_16
    ) : encoder{encoder}, up{up}, down{down}, enter{enter}
       , flash{flash}, modbus_master_regs{modbus_master_regs}
+      , flags_03{flags_03}, flags_16{flags_16}
+      , uart_set_03{uart_set_03}, uart_set_16{uart_set_16}
    {
       tick_subscribe();
       current_screen->init();
       while(not hd44780.init_done()){}
    }
 
-   Main_screen<Regs> main_screen {
+   Main_screen<Regs, Flags> main_screen {
           lcd, buttons_events
       //   , Enter_event  { [this](auto c){enter.set_click_callback(c);}}
         , Out_callback { [this]{ change_screen(main_select); }}
         , modbus_master_regs
-      //   , modbus_master_regs.frequency_03
-      //   , modbus_master_regs.frequency_16
-      //   , modbus_master_regs.work_frequency_03
-      //   , modbus_master_regs.temperatura_03
-      //   , modbus_master_regs.current_03
-      //   , modbus_master_regs.flags_03
+        , flags_03
+        , flags_16
    };
 
-    Select_screen<5> main_select {
+    Select_screen<6> main_select {
           lcd, buttons_events
-        , Out_callback          { [this]{change_screen(main_screen);  }}
-        , Line {"Параметры"      ,[this]{change_screen(option_select);}}
-        , Line {"Настройка"      ,[this]{ if (flash.search)
+        , Out_callback          { [this]{change_screen(main_screen);   modbus_master_regs.flags_16.disable = true;}}
+        , Line {"Параметры"      ,[this]{change_screen(option_select); modbus_master_regs.power_03.disable = false;
+                                                                       modbus_master_regs.work_frequency_03.disable = false;
+                                                                       modbus_master_regs.max_current_03.disable    = false; }}
+        , Line {"Настройка"      ,[this]{ if (flags_03.search)
                                              change_screen(select_tune_end);
                                           else
-                                             change_screen(select_tune_begin);  }}
+                                             change_screen(select_tune_begin);}}
         , Line {"Режим работы"   ,[this]{change_screen(mode_set);     }}
         , Line {"Конфигурация"   ,[this]{change_screen(config_select);}}
         , Line {"Аварии"         ,[this]{change_screen(alarm_select); }}
+        , Line {"Настройки сети" ,[this]{change_screen(modbus_select); modbus_master_regs.modbus_address_03.disable = false;
+                                                                       modbus_master_regs.uart_set_03.disable = false;}}
    };
 
+   uint8_t power{0};
+   uint16_t work_frequency{0};
+   uint16_t max_current{0};
    Select_screen<4> option_select {
           lcd, buttons_events
-        , Out_callback    {       [this]{ change_screen(main_select);    }}
-        , Line {"Mощность"       ,[this]{ change_screen(duty_cycle_set); }}
-        , Line {"Макс. ток"      ,[this]{ change_screen(max_current_set);}}
-        , Line {"Рабочая частота",[this]{ change_screen(frequency_set);  }}
-        , Line {"Температура"    ,[this]{ change_screen(temp_select);    }}
+        , Out_callback    {       [this]{ modbus_master_regs.power_16.disable = true; 
+                                          modbus_master_regs.power_03.disable = true;
+                                          modbus_master_regs.work_frequency_16.disable = true;
+                                          modbus_master_regs.work_frequency_03.disable = true;
+                                          modbus_master_regs.max_current_16.disable    = true;
+                                          modbus_master_regs.max_current_03.disable    = true;   change_screen(main_select);    }}
+        , Line {"Mощность"       ,[this]{ power = modbus_master_regs.power_03;                   change_screen(duty_cycle_set); }}
+        , Line {"Макс. ток"      ,[this]{ max_current = modbus_master_regs.max_current_03;       change_screen(max_current_set);}}
+        , Line {"Рабочая частота",[this]{ work_frequency = modbus_master_regs.work_frequency_03; change_screen(frequency_set);  }}
+        , Line {"Температура"    ,[this]{ modbus_master_regs.max_temp_03.disable      = false;
+                                          modbus_master_regs.recovery_temp_03.disable = false;   change_screen(temp_select);    }}
    };
 
    uint8_t mode_ {flash.m_control};
@@ -92,61 +111,64 @@ struct Menu : TickSubscriber {
       , Min<uint8_t>{0}, Max<uint8_t>{::mode.size() - 1}
       , Out_callback    { [this]{ change_screen(main_select); }}
       , Enter_callback  { [this]{ 
-         flash.m_control = mode_;
+            flags_16.manual = mode_;
+            modbus_master_regs.flags_16.disable = false;
+            modbus_master_regs.frequency_16.disable = flags_16.manual ? false : true;
+            modbus_master_regs.frequency_16 = modbus_master_regs.frequency_03;
             change_screen(main_select);
       }}
    };
 
+   bool tune_ {flags_03.manual_tune};
    Select_screen<2> select_tune_begin {
           lcd, buttons_events
-        , Out_callback    {        [this]{ change_screen(main_select);    }}
-        , Line {"Режим настройки" ,[this]{ change_screen(tune_set);       }}
-        , Line {"Начать"          ,[this]{ flash.search = true;
+        , Out_callback    {        [this]{ change_screen(main_select); modbus_master_regs.flags_16.disable = true;  }}
+        , Line {"Режим настройки" ,[this]{ tune_ = flags_03.manual_tune; change_screen(tune_set);       }}
+        , Line {"Начать"          ,[this]{ modbus_master_regs.search = true; modbus_master_regs.search.disable = false;
                                            change_screen(main_screen);    }}
    };
 
    Select_screen<2> select_tune_end {
           lcd, buttons_events
-        , Out_callback    {        [this]{ change_screen(main_select);    }}
-        , Line {"Режим настройки" ,[this]{ change_screen(tune_set);       }}
-        , Line {"Закончить"       ,[this]{ flash.search = false;
+        , Out_callback    {        [this]{ change_screen(main_select); modbus_master_regs.flags_16.disable = true;  }}
+        , Line {"Режим настройки" ,[this]{ tune_ = flags_03.manual_tune; change_screen(tune_set);       }}
+        , Line {"Закончить"       ,[this]{ modbus_master_regs.search = false; modbus_master_regs.search.disable = false;
                                            change_screen(main_screen);    }}
    };
    
-   uint8_t tune_ {flash.m_search};
-   Set_screen<uint8_t, tune_to_string> tune_set {
+   Set_screen<bool, tune_to_string> tune_set {
         lcd, buttons_events
       , "Настройка"
       , ""
       , tune_
-      , Min<uint8_t>{0}, Max<uint8_t>{::tune.size() - 1}
-      , Out_callback    { [this]{ if (flash.search)
+      , Min<bool>{false}, Max<bool>{true}
+      , Out_callback    { [this]{ if (flags_03.search)
                                     change_screen(select_tune_end);
                                   else
                                     change_screen(select_tune_begin); }}
       , Enter_callback  { [this]{ 
-         flash.m_search = tune_;
-            if (flash.search)
+            flags_16.manual_tune = tune_;
+            modbus_master_regs.flags_16.disable = false;
+            if (flags_03.search)
                change_screen(select_tune_end);
             else
                change_screen(select_tune_begin);
       }}
    };
    
-   uint8_t power{flash.power};
    Set_screen<uint8_t> duty_cycle_set {
         lcd, buttons_events
       , "Мощность от ном."
       , " %"
       , power
       , Min<uint8_t>{0_percent}, Max<uint8_t>{100_percent}
-      , Out_callback    { [this]{ change_screen(option_select); }}
+      , Out_callback    { [this]{ change_screen(option_select);}}
       , Enter_callback  { [this]{ 
-         flash.power = power;
+            modbus_master_regs.power_16 = power;
+            modbus_master_regs.power_16.disable = false;
             change_screen(option_select); }}
    };
 
-   uint16_t max_current{flash.max_current};
    Set_screen<uint16_t> max_current_set {
         lcd, buttons_events
       , "Допустимый ток."
@@ -155,11 +177,11 @@ struct Menu : TickSubscriber {
       , Min<uint16_t>{0_mA}, Max<uint16_t>{12000_mA}
       , Out_callback    { [this]{ change_screen(option_select); }}
       , Enter_callback  { [this]{ 
-         flash.max_current = max_current;
+         modbus_master_regs.max_current_16 = max_current;
+         modbus_master_regs.max_current_16.disable = false;
             change_screen(option_select); }}
    };
 
-   uint16_t work_frequency{flash.work_frequency};
    Set_screen<uint16_t> frequency_set {
         lcd, buttons_events
       , "Рабочая частота"
@@ -168,16 +190,22 @@ struct Menu : TickSubscriber {
       , Min<uint16_t>{18_kHz}, Max<uint16_t>{45_kHz}
       , Out_callback    { [this]{ change_screen(option_select); }}
       , Enter_callback  { [this]{ 
-         flash.work_frequency = work_frequency;
+            modbus_master_regs.work_frequency_16 = work_frequency;
+            modbus_master_regs.work_frequency_16.disable = false;
             change_screen(option_select); }}
    };
 
+   uint16_t temperatura{0};
+   uint16_t recovery{0};
    Select_screen<3> temp_select {
           lcd, buttons_events
-        , Out_callback    {      [this]{ change_screen(main_select);     }}
-        , Line {"Текущая"       ,[this]{ change_screen(temp_show);  }}
-        , Line {"Максимальная"  ,[this]{ change_screen(temp_set);;  }}
-        , Line {"Восстановления",[this]{ change_screen(temp_recow);;  }}
+        , Out_callback    {      [this]{ modbus_master_regs.max_temp_16.disable      = true;
+                                         modbus_master_regs.recovery_temp_16.disable = true; 
+                                         modbus_master_regs.max_temp_03.disable      = true;
+                                         modbus_master_regs.recovery_temp_03.disable = true; change_screen(main_select);}}
+        , Line {"Текущая"       ,[this]{                                                     change_screen(temp_show);  }}
+        , Line {"Максимальная"  ,[this]{ temperatura = modbus_master_regs.max_temp_03;       change_screen(temp_set);   }}
+        , Line {"Восстановления",[this]{ recovery = modbus_master_regs.recovery_temp_03;     change_screen(temp_recow); }}
    };
 
    Temp_show_screen temp_show {
@@ -188,33 +216,29 @@ struct Menu : TickSubscriber {
       , modbus_master_regs.temperatura_03
    };
    
-   uint8_t temperatura{flash.temperatura};
-   Set_screen<uint8_t> temp_set {
+   Set_screen<uint16_t> temp_set {
         lcd, buttons_events
       , "Температ. откл."
       , " С"
       , temperatura
-      , Min<uint8_t>{0}, Max<uint8_t>{100}
+      , Min<uint16_t>{0}, Max<uint16_t>{100}
       , Out_callback    { [this]{ change_screen(temp_select); }}
       , Enter_callback  { [this]{ 
-         flash.temperatura 
-            = modbus_master_regs.max_temp_16
-            = temperatura;
+            modbus_master_regs.max_temp_16 = temperatura;
+            modbus_master_regs.max_temp_16.disable = false;
             change_screen(temp_select); }}
    };
 
-   uint8_t recovery{flash.recovery};
-   Set_screen<uint8_t> temp_recow {
+   Set_screen<uint16_t> temp_recow {
         lcd, buttons_events
       , "Температ. вкл."
       , " С"
       , recovery
-      , Min<uint8_t>{0}, Max<uint8_t>{100}
+      , Min<uint16_t>{0}, Max<uint16_t>{100}
       , Out_callback    { [this]{ change_screen(temp_select); }}
       , Enter_callback  { [this]{ 
-         flash.recovery 
-            = modbus_master_regs.recovery_temp_16
-            = recovery;
+            modbus_master_regs.recovery_temp_16 = recovery;
+            modbus_master_regs.recovery_temp_16.disable = false;
             change_screen(temp_select); }}
    };
 
@@ -295,6 +319,47 @@ struct Menu : TickSubscriber {
          flash.time = time;
             change_screen(deviation_select); }}
    };
+
+   uint16_t address{0};
+   uint16_t boudrate_ {0};
+   Select_screen<4> modbus_select {
+        lcd, buttons_events
+      , Out_callback        {     [this]{modbus_master_regs.modbus_address_03.disable = true;
+                                         modbus_master_regs.modbus_address_16.disable = true;
+                                         modbus_master_regs.uart_set_03.disable       = true;
+                                         modbus_master_regs.uart_set_16.disable       = true; change_screen(main_select) ;}}
+      , Line {"Адрес"            ,[this]{address = modbus_master_regs.modbus_address_03;      change_screen(address_set) ;}}
+      , Line {"Скорость"         ,[this]{boudrate_ = uint16_t(uart_set_03.baudrate);          /*change_screen(boudrate_set);*/}}
+      , Line {"Проверка на чет." ,[this]{}}
+      , Line {"Кол-во стоп-бит"  ,[this]{}}
+   };
+
+   Set_screen<uint16_t> address_set {
+        lcd, buttons_events
+      , "Адрес modbus"
+      , ""
+      , address
+      , Min<uint16_t>{1}, Max<uint16_t>{255}
+      , Out_callback    { [this]{ change_screen(modbus_select);  }}
+      , Enter_callback  { [this]{ 
+            modbus_master_regs.modbus_address_16 = address;
+            modbus_master_regs.modbus_address_16.disable = false;
+            change_screen(modbus_select);}}
+   };
+
+   
+   // Set_screen<uint16_t, boudrate_to_string> boudrate_set {
+   //      lcd, buttons_events
+   //    , "Скорость в бодах"
+   //    , ""
+   //    , boudrate_
+   //    , Min<uint16_t>{0}, Max<uint16_t>{::boudrate.size() - 1}
+   //    , Out_callback    { [this]{ change_screen(modbus_select); }}
+   //    , Enter_callback  { [this]{ 
+   //          uart_set_16.baudrate = USART::Baudrate(boudrate_);
+   //          modbus_master_regs.uart_set_16.disable = false;
+   //          change_screen(modbus_select);}}
+   // };
 
    void notify() override {
       every_qty_cnt_call(tick_count, 50, [this]{

@@ -59,57 +59,58 @@ constexpr std::string_view deviation_to_string(int i) {
     return deviation[i];
 }
 
-template <class Regs>
+constexpr auto boudrate = std::array {
+    "9600",
+    "14400",
+    "19200",
+    "28800",
+    "38400",
+    "57600",
+    "76800",
+    "115200"
+};
+
+constexpr std::string_view boudrate_to_string(int i) {
+    return boudrate[i];
+}
+
+template <class Regs, class Flags>
 struct Main_screen : Screen {
    String_buffer& lcd;
    Buttons_events eventers;
    Callback<> out_callback;
    Regs& modbus_master_regs;
-//    uint16_t& frequency;
-//    uint16_t& frequency_16;
-//    uint16_t& work_frequency;
-//    uint16_t& temperatura;
-//    uint16_t& current;
-//    Flags& flags;
-   // uint16_t& cur;
-   // Flags& flags;
+   Flags& flags_03;
+   Flags& flags_16;
 
    Main_screen(
         String_buffer& lcd
       , Buttons_events eventers
       , Out_callback out_callback
       , Regs& modbus_master_regs
-    //   , uint16_t& frequency
-    //   , uint16_t& frequency_16
-    //   , uint16_t& work_frequency
-    //   , uint16_t& temperatura
-    //   , uint16_t& current
-    //   , Flags& flags
+      , Flags& flags_03
+      , Flags& flags_16
       
    ) : lcd          {lcd}
      , eventers     {eventers}
      , out_callback {out_callback.value}
      , modbus_master_regs {modbus_master_regs}
-    //  , frequency    {frequency}
-    //  , frequency_16 {frequency_16}
-    //  , work_frequency {work_frequency}
-    //  , temperatura  {temperatura}
-    //  , current      {current}
-    //  , flags        {flags}
+     , flags_03 {flags_03}
+     , flags_16 {flags_16}
    {}
 
    void init() override {
-    //   eventers.enter ([this]{ flags.on ^= 1;});
-    //   eventers.up    ([this]{ modbus_master_regs.frequency_16 += /*(modbus_master_regs.flags_03.manual_tune and modbus_master_regs.flags_03.search) or modbus_master_regs.flags_03.manual ? */ 10;});
-    //   eventers.down  ([this]{ modbus_master_regs.frequency_16 += /*(modbus_master_regs.flags_03.manual_tune and modbus_master_regs.flags_03.search) or modbus_master_regs.flags_03.manual ? */-10;});
+      eventers.enter ([this]{ modbus_master_regs.on ^= 1;});
+      eventers.up    ([this]{ modbus_master_regs.frequency_16 += /*(modbus_master_regs.flags_03.manual_tune and modbus_master_regs.flags_03.search) or modbus_master_regs.flags_03.manual ? */ 10;});
+      eventers.down  ([this]{ modbus_master_regs.frequency_16 += /*(modbus_master_regs.flags_03.manual_tune and modbus_master_regs.flags_03.search) or modbus_master_regs.flags_03.manual ? */-10;});
       eventers.out   ([this]{ out_callback(); });
       lcd.clear();
       lcd.line(0) << "F=";
       lcd.line(0).cursor(11) << "P=";
       lcd.line(1) << "I=";
       lcd.line(1).cursor(10).width(2) << modbus_master_regs.temperatura_03 << "C";
-    //   lcd.line(1).cursor(14) << ::info[this->flags.manual_tune];
-    //   lcd.line(1).cursor(15) << ::info[this->flags.manual];
+      lcd.line(1).cursor(14) << ::info[flags_03.manual_tune];
+      lcd.line(1).cursor(15) << ::info[flags_03.manual];
    }
 
    void deinit() override {
@@ -121,24 +122,24 @@ struct Main_screen : Screen {
 
    void draw() override {
       lcd.line(0).cursor(2).div_1000(modbus_master_regs.frequency_03) << "кГц";
-      // lcd.line(0).cursor(13).width(2) << (pwm.duty_cycle / 5) << '%';
+      lcd.line(0).cursor(13).width(2) << modbus_master_regs.duty_cycle_03 << '%';
       lcd.line(1).cursor(10).width(2) << modbus_master_regs.temperatura_03 << "C ";
-    //   lcd.line(1).cursor(14) << ::info[this->flags.manual_tune];
-    //   lcd.line(1).cursor(15) << ::info[this->flags.manual];
+      lcd.line(1).cursor(14) << ::info[flags_03.manual_tune];
+      lcd.line(1).cursor(15) << ::info[flags_03.manual];
       
-    //   if (/*not flags.is_alarm()*/1) {
-    //      lcd.line(1) << "I="; lcd.line(1).cursor(2).div_1000(current) << "А ";
-    //      return;}
-      // } else if (flags.overheat) {
-      //    lcd.line(1) << "OVERHAET";
-      //    return;
-      // } else if (flags.no_load) {
-      //    lcd.line(1) << "NO LOAD ";
-      //    return;
-      // } else if (flags.overload) {
-      //    lcd.line(1) << "OVERLOAD";
-      //    return;
-      // }
+      if (not flags_03.is_alarm()) {
+         lcd.line(1) << "I="; lcd.line(1).cursor(2).div_1000(modbus_master_regs.current_03) << "А ";
+         return;
+      } else if (flags_03.overheat) {
+         lcd.line(1) << "OVERHAET";
+         return;
+      } else if (flags_03.no_load) {
+         lcd.line(1) << "NO LOAD ";
+         return;
+      } else if (flags_03.overload) {
+         lcd.line(1) << "OVERLOAD";
+         return;
+      }
    }
 
 };

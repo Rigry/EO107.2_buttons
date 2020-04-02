@@ -44,21 +44,14 @@ int main()
       };
       uint8_t  modbus_address  = 1;
       uint16_t model_number    = 0;
-      uint16_t work_frequency  = 18_kHz;
-      uint16_t max_current     = 0;
       uint16_t a_current       = 0;
       uint16_t m_current       = 0;
       uint16_t m_resonance     = 18_kHz;
       uint16_t a_resonance     = 18_kHz;
       uint16_t range_deviation = 200;
-      uint16_t  time            = 200_ms;
+      uint16_t time            = 200_ms;
       uint8_t  qty_changes     = 2;
-      uint8_t  power           = 100_percent;
-      uint8_t  temperatura     = 65;
-      uint8_t  recovery        = 45;
-      bool     m_search        = false;
       bool     m_control       = false;
-      bool     search          = false;
       bool     deviation       = false;
    } flash;
    
@@ -82,20 +75,28 @@ int main()
       bool connect       :1;
       uint16_t           :8; //Bits 11:2 res: Reserved, must be kept cleared
       bool is_alarm() { return overheat or no_load or overload; }
-   };
+   }flags_03, flags_16;
+
+   using UART = UART::Settings;
+   UART uart_set_03, uart_set_16;
 
    struct {
+      // регистры управления
+      Register<1, Modbus_function::force_coil_05, 0>  on;
+      Register<1, Modbus_function::force_coil_05, 1>  search;
       // регистры на запись
-      // Register<1, Modbus_function::write_16, 0> uart_set;
-      // Register<1, Modbus_function::write_16, 1> modbus_address;
-      // Register<1, Modbus_function::write_16, 4>  frequency_16;
-      // Register<1, Modbus_function::write_16, 5>  work_frequency_16;
-      // Register<1, Modbus_function::write_16, 6>  power_16;
-      // Register<1, Modbus_function::write_16, 7>  max_current_16;
+      Register<1, Modbus_function::write_16, 0, UART> uart_set_16;
+      Register<1, Modbus_function::write_16, 1>  modbus_address_16;
+      Register<1, Modbus_function::write_16, 4>  frequency_16;
+      Register<1, Modbus_function::write_16, 5>  work_frequency_16;
+      Register<1, Modbus_function::write_16, 6>  power_16;
+      Register<1, Modbus_function::write_16, 7>  max_current_16;
       Register<1, Modbus_function::write_16, 8>  max_temp_16;
       Register<1, Modbus_function::write_16, 9>  recovery_temp_16;
       Register<1, Modbus_function::write_16, 10, Flags> flags_16;
       // регистры на чтение
+      Register<1, Modbus_function::read_03, 2, UART> uart_set_03;
+      Register<1, Modbus_function::read_03, 3>  modbus_address_03;
       Register<1, Modbus_function::read_03, 4>  power_03;
       Register<1, Modbus_function::read_03, 5>  duty_cycle_03;
       Register<1, Modbus_function::read_03, 6>  work_frequency_03;
@@ -104,20 +105,33 @@ int main()
       // Register<1, Modbus_function::read_03, 9>  a_resonance_03;
       Register<1, Modbus_function::read_03, 10> current_03;
       Register<1, Modbus_function::read_03, 11> max_current_03;
-      Register<1, Modbus_function::read_03, 12> a_current_03;
-      Register<1, Modbus_function::read_03, 13> m_current_03;
+      // Register<1, Modbus_function::read_03, 12> a_current_03;
+      // Register<1, Modbus_function::read_03, 13> m_current_03;
       Register<1, Modbus_function::read_03, 14> temperatura_03;
       Register<1, Modbus_function::read_03, 15> max_temp_03;
       Register<1, Modbus_function::read_03, 16> recovery_temp_03;
       Register<1, Modbus_function::read_03, 17, Flags> flags_03;
    } modbus_master_regs;
 
-   modbus_master_regs.max_temp_16       = flash.temperatura;
-   modbus_master_regs.recovery_temp_16  = flash.recovery;
-   // modbus_master_regs.work_frequency_16 = flash.work_frequency;
-   // modbus_master_regs.max_current_16    = flash.max_current;
-
-   modbus_master_regs.flags_16.disable = true;
+   // запросы отправляются только при необходимости изменить значение
+   modbus_master_regs.uart_set_16.disable       = true;
+   modbus_master_regs.modbus_address_16.disable = true;
+   modbus_master_regs.frequency_16.disable      = true;
+   modbus_master_regs.work_frequency_16.disable = true;
+   modbus_master_regs.power_16.disable          = true;
+   modbus_master_regs.max_current_16.disable    = true;
+   modbus_master_regs.max_temp_16.disable       = true;
+   modbus_master_regs.recovery_temp_16.disable  = true;
+   modbus_master_regs.flags_16.disable          = true;
+   // запросы отправляются только при необходимости прочитать значение
+   modbus_master_regs.uart_set_03.disable       = true;
+   modbus_master_regs.modbus_address_03.disable = true;
+   modbus_master_regs.power_03.disable          = true;
+   modbus_master_regs.work_frequency_03.disable = true;
+   modbus_master_regs.max_current_03.disable    = true;
+   modbus_master_regs.power_03.disable          = true;
+   modbus_master_regs.max_temp_03.disable       = true;
+   modbus_master_regs.recovery_temp_03.disable  = true;
 
    decltype(auto) modbus_master = make_modbus_master <
           mcu::Periph::USART1
@@ -128,8 +142,6 @@ int main()
 
    volatile decltype(auto) encoder = Encoder::make<mcu::Periph::TIM8, mcu::PC6, mcu::PC7, true>();
 
-   // using Flash  = decltype(flash);
-
    auto up    = Button<Right>();
    auto down  = Button<Left>();
    auto enter = Button<Enter>();
@@ -138,10 +150,37 @@ int main()
       hd44780_pins, encoder, up, down, enter
       , flash
       , modbus_master_regs
+      , flags_03
+      , flags_16
+      , uart_set_03
+      , uart_set_16
    );
+
+   Timer blink{500_ms};
    
    while(1){
+      flags_03 = modbus_master_regs.flags_03;
+      modbus_master_regs.flags_16 = flags_16;
+      if ((flags_03.manual_tune and flags_03.search) or (flags_03.manual and not flags_03.search))
+         modbus_master_regs.frequency_16.disable = false;
+      else 
+         modbus_master_regs.frequency_16.disable = true;
+
+      // uart_set_03 = modbus_master_regs.uart_set_03;
+      // uart_set_16.res = 0;
+      // uart_set_16.parity = USART::Parity::even;
+      // modbus_master_regs.uart_set_16 = uart_set_16;
+      // if (not flags_03.search and modbus_master_regs.search) modbus_master_regs.search = false; // если закончен поиск, запрет команды на
       modbus_master();
+      if (flags_03.on and flags_03.search and not flags_03.is_alarm())
+         led_green ^= blink.event();
+      else if (flags_03.on and not flags_03.search and not flags_03.is_alarm()) {
+         led_green = true;
+         modbus_master_regs.search = false;
+      } else
+         led_green = false;
+
+      flags_03.is_alarm() ? led_red ^= blink.event() : led_red = false;
       __WFI();
    }
 }
