@@ -83,7 +83,7 @@ struct Main_screen : Screen {
    Regs& modbus_master_regs;
    Flags& flags_03;
    Flags& flags_16;
-   Timer& blink;
+   Timer blink{500_ms};
    bool blink_{false};
 
    Main_screen(
@@ -93,7 +93,6 @@ struct Main_screen : Screen {
       , Regs& modbus_master_regs
       , Flags& flags_03
       , Flags& flags_16
-      , Timer& blink
       
    ) : lcd          {lcd}
      , eventers     {eventers}
@@ -101,7 +100,6 @@ struct Main_screen : Screen {
      , modbus_master_regs {modbus_master_regs}
      , flags_03 {flags_03}
      , flags_16 {flags_16}
-     , blink {blink}
    {}
 
    void init() override {
