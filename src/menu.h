@@ -21,6 +21,7 @@ struct Menu : TickSubscriber {
    Flags& flags_16;
    UART& uart_set_03;
    UART& uart_set_16;
+   Timer& blink;
 
 
    Screen* current_screen {&main_screen};
@@ -46,10 +47,11 @@ struct Menu : TickSubscriber {
       , Flags& flags_16
       , UART& uart_set_03
       , UART& uart_set_16
+      , Timer& blink
    ) : up{up}, down{down}, enter{enter} 
       , flash{flash}, modbus_master_regs{modbus_master_regs}
       , flags_03{flags_03}, flags_16{flags_16}
-      , uart_set_03{uart_set_03}, uart_set_16{uart_set_16}
+      , uart_set_03{uart_set_03}, uart_set_16{uart_set_16}, blink{blink}
    {
       tick_subscribe();
       current_screen->init();
@@ -63,6 +65,7 @@ struct Menu : TickSubscriber {
         , modbus_master_regs
         , flags_03
         , flags_16
+        , blink
    };
 
     Select_screen<6> main_select {

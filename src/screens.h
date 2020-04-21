@@ -1,6 +1,7 @@
 #pragma once
 
 #include "screen_common.h"
+#include "timers.h"
 #include <array>
 #include <bitset>
 
@@ -82,6 +83,8 @@ struct Main_screen : Screen {
    Regs& modbus_master_regs;
    Flags& flags_03;
    Flags& flags_16;
+   Timer& blink;
+   bool blink_{false};
 
    Main_screen(
         String_buffer& lcd
@@ -90,6 +93,7 @@ struct Main_screen : Screen {
       , Regs& modbus_master_regs
       , Flags& flags_03
       , Flags& flags_16
+      , Timer& blink
       
    ) : lcd          {lcd}
      , eventers     {eventers}
@@ -97,6 +101,7 @@ struct Main_screen : Screen {
      , modbus_master_regs {modbus_master_regs}
      , flags_03 {flags_03}
      , flags_16 {flags_16}
+     , blink {blink}
    {}
 
    void init() override {
@@ -124,7 +129,11 @@ struct Main_screen : Screen {
       lcd.line(0).cursor(2).div_1000(modbus_master_regs.frequency_03) << "кГц";
       lcd.line(0).cursor(13).width(2) << modbus_master_regs.duty_cycle_03 << '%';
       lcd.line(1).cursor(10).width(2) << modbus_master_regs.temperatura_03 << "C ";
-      lcd.line(1).cursor(14) << ::info[flags_03.manual_tune];
+      if (modbus_master_regs.search) {
+          blink_ ^= blink.event();
+          blink_ ? lcd.line(1).cursor(14) << ::info[flags_03.manual_tune] : lcd.line(1).cursor(14) << ' ';
+      } else
+        lcd.line(1).cursor(14) << ::info[flags_03.manual_tune];
       lcd.line(1).cursor(15) << ::info[flags_03.manual];
       
       if (not flags_03.is_alarm()) {
