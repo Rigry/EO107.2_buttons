@@ -12,7 +12,6 @@ template<class Pins, class Flash_data, class Regs, class Flags, class UART, size
 struct Menu : TickSubscriber {
    String_buffer lcd {};
    HD44780& hd44780 {HD44780::make(Pins{}, lcd.get_buffer())};
-   Encoder& encoder;
    Button_event& up;
    Button_event& down;
    Button_event& enter;
@@ -28,8 +27,8 @@ struct Menu : TickSubscriber {
    size_t tick_count{0};
 
    Buttons_events buttons_events {
-        Up_event    {[this](auto c){encoder.set_plus_callback(c);}}
-      , Down_event  {[this](auto c){encoder.set_minus_callback(c);}}
+        Up_event    {[this](auto c){   up.set_click_callback(c);}}
+      , Down_event  {[this](auto c){ down.set_click_callback(c);}}
       , Enter_event {[this](auto c){enter.set_click_callback(c);}}
       , Out_event   {[this](auto c){enter.set_long_push_callback(c);}}
       , Increment_up_event   {[this](auto c){  up.set_increment_callback(c);}}
@@ -38,7 +37,6 @@ struct Menu : TickSubscriber {
 
    Menu (
         Pins pins
-      , Encoder& encoder
       , Button_event& up
       , Button_event& down
       , Button_event& enter
@@ -48,7 +46,7 @@ struct Menu : TickSubscriber {
       , Flags& flags_16
       , UART& uart_set_03
       , UART& uart_set_16
-   ) : encoder{encoder}, up{up}, down{down}, enter{enter}
+   ) : up{up}, down{down}, enter{enter} 
       , flash{flash}, modbus_master_regs{modbus_master_regs}
       , flags_03{flags_03}, flags_16{flags_16}
       , uart_set_03{uart_set_03}, uart_set_16{uart_set_16}

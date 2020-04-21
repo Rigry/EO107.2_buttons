@@ -12,21 +12,23 @@
 #include "flash.h"
 #include "modbus_master.h"
 
-using TX_master  = mcu::PA9;
-using RX_master  = mcu::PA10;
-using RTS_master = mcu::PA12;
-using LED_red = mcu::PA15;
-using LED_green = mcu::PC10;
-using Enter = mcu::PA8;
-using Left = mcu::PB13;
-using Right = mcu::PB14;
+using TX_master  = mcu::PA2;
+using RX_master  = mcu::PA3;
+using RTS_master = mcu::PA15;
+using LED_red = mcu::PA4;
+using LED_green = mcu::PA5;
+using Enter = mcu::PB15;
+using Left = mcu::PC9;
+using Right = mcu::PB13;
+using Start = mcu::PA12;
+using Set   = mcu::PB7;
 using E   = mcu::PC14;       
 using RW  = mcu::PC15;       
 using RS  = mcu::PC13;      
-using DB4 = mcu::PC2;       
-using DB5 = mcu::PC3;
-using DB6 = mcu::PC0;    
-using DB7 = mcu::PC1;
+using DB4 = mcu::PC0;       
+using DB5 = mcu::PC1;
+using DB6 = mcu::PC2;    
+using DB7 = mcu::PC3;
 
 extern "C" void init_clock () { init_clock<F_OSC, F_CPU>(); }
 
@@ -39,7 +41,7 @@ int main()
          .parity         = USART::Parity::even,
          .data_bits      = USART::DataBits::_8,
          .stop_bits      = USART::StopBits::_1,
-         .baudrate       = USART::Baudrate::BR9600,
+         .baudrate       = USART::Baudrate::BR115200,
          .res            = 0
       };
       uint8_t  modbus_address  = 1;
@@ -134,20 +136,21 @@ int main()
    modbus_master_regs.recovery_temp_03.disable  = true;
 
    decltype(auto) modbus_master = make_modbus_master <
-          mcu::Periph::USART1
+          mcu::Periph::USART2
         , TX_master
         , RX_master
         , RTS_master
     > (100_ms, flash.uart_set, modbus_master_regs);
 
-   volatile decltype(auto) encoder = Encoder::make<mcu::Periph::TIM8, mcu::PC6, mcu::PC7, true>();
+   // volatile decltype(auto) encoder = Encoder::make<mcu::Periph::TIM8, mcu::PC6, mcu::PC7, true>();
 
    auto up    = Button<Right>();
    auto down  = Button<Left>();
    auto enter = Button<Enter>();
+   
    constexpr auto hd44780_pins = HD44780_pins<RS, RW, E, DB4, DB5, DB6, DB7>{};
    [[maybe_unused]] auto menu = Menu (
-      hd44780_pins, encoder, up, down, enter
+      hd44780_pins, up, down, enter 
       , flash
       , modbus_master_regs
       , flags_03
@@ -156,7 +159,14 @@ int main()
       , uart_set_16
    );
 
+   auto start = Button<Start>();
+   start.set_down_callback([&]{ modbus_master_regs.on ^= 1;});
+   auto set   = Button<Set>();
+   set.set_down_callback([&]{modbus_master_regs.search ^= 1;});
+
    Timer blink{500_ms};
+
+
    
    while(1){
       flags_03 = modbus_master_regs.flags_03;
