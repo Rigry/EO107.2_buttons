@@ -103,10 +103,10 @@ struct Main_screen : Screen {
    {}
 
    void init() override {
-      eventers.enter ([this]{ });
+      eventers.enter ([this]{ out_callback();});
       eventers.up    ([this]{ modbus_master_regs.frequency_16 += /*(modbus_master_regs.flags_03.manual_tune and modbus_master_regs.flags_03.search) or modbus_master_regs.flags_03.manual ? */ 10;});
       eventers.down  ([this]{ modbus_master_regs.frequency_16 += /*(modbus_master_regs.flags_03.manual_tune and modbus_master_regs.flags_03.search) or modbus_master_regs.flags_03.manual ? */-10;});
-      eventers.out   ([this]{ out_callback(); });
+      eventers.out   ([this]{  });
       lcd.clear();
       lcd.line(0) << "F=";
       lcd.line(0).cursor(11) << "P=";
