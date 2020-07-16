@@ -2,8 +2,11 @@
 
 #include "screen_common.h"
 #include "timers.h"
+#include "adc.h"
+#include "NTC_table.h"
 #include <array>
 #include <bitset>
+#include <cstdlib>
 
 constexpr auto info = std::array {
     "А",
@@ -75,6 +78,12 @@ constexpr std::string_view boudrate_to_string(int i) {
     return boudrate[i];
 }
 
+constexpr auto conversion_on_channel {96};
+struct ADC_{
+   ADC_average& control     = ADC_average::make<mcu::Periph::ADC1>(conversion_on_channel);
+   ADC_channel& temperatura = control.add_channel<mcu::PA7>();
+}adc;
+
 template <class Regs, class Flags>
 struct Main_screen : Screen {
    String_buffer& lcd;
@@ -83,6 +92,10 @@ struct Main_screen : Screen {
    Regs& modbus_master_regs;
    Flags& flags_03;
    Flags& flags_16;
+   ADC_& adc;
+   uint8_t& every_degree{0};
+   uint16_t temperature{0}; 
+   uint16_t last_temp{0};
    Timer blink{500_ms};
    bool blink_{false};
 
@@ -93,14 +106,18 @@ struct Main_screen : Screen {
       , Regs& modbus_master_regs
       , Flags& flags_03
       , Flags& flags_16
+      , ADC_& adc
+      , uint8_t& every_degree
       
    ) : lcd          {lcd}
      , eventers     {eventers}
      , out_callback {out_callback.value}
      , modbus_master_regs {modbus_master_regs}
-     , flags_03 {flags_03}
-     , flags_16 {flags_16}
-   {}
+     , flags_03   {flags_03}
+     , flags_16   {flags_16}
+     , adc        {adc}
+     , every_degree {every_degree}
+   {adc.control.start();}
 
    void init() override {
       eventers.enter ([this]{ out_callback();});
@@ -111,7 +128,7 @@ struct Main_screen : Screen {
       lcd.line(0) << "F=";
       lcd.line(0).cursor(11) << "P=";
       lcd.line(1) << "I=";
-      lcd.line(1).cursor(10).width(2) << modbus_master_regs.temperatura_03 << "C";
+      lcd.line(1).cursor(10).width(2) << temperature << "C";
       lcd.line(1).cursor(14) << ::info[flags_03.manual_tune];
       lcd.line(1).cursor(15) << ::info[flags_03.manual];
    }
@@ -126,7 +143,13 @@ struct Main_screen : Screen {
    void draw() override {
       lcd.line(0).cursor(2).div_1000(modbus_master_regs.frequency_03) << "кГц";
       lcd.line(0).cursor(13).width(2) << modbus_master_regs.duty_cycle_03 << '%';
-      lcd.line(1).cursor(10).width(2) << modbus_master_regs.temperatura_03 << "C ";
+      lcd.line(1).cursor(10).width(2) << temperature << "C ";
+      temperature = temp(adc.temperatura);
+      if (abs(temperature - last_temp) >= every_degree) {
+          flags_16.research = true;
+          last_temp = temperature;
+      }
+
       if (modbus_master_regs.search) {
           blink_ ^= blink.event();
           blink_ ? lcd.line(1).cursor(14) << ::info[flags_03.manual_tune] : lcd.line(1).cursor(14) << ' ';
@@ -147,6 +170,24 @@ struct Main_screen : Screen {
          lcd.line(1) << "OVERLOAD";
          return;
       }
+   }
+
+   int n{0};
+   uint32_t avg{0};
+   std::array<uint16_t, 10> array_temp;
+   uint16_t temp(uint32_t adc) {
+      array_temp[n++] = adc / conversion_on_channel;
+      n = n >= 10 ? 0 : n;
+      avg = 0;
+      for (auto c : array_temp)
+         avg += c;
+      avg /= array_temp.size();
+      auto p = std::lower_bound(
+          std::begin(NTC::u2904<33,5100>),
+          std::end(NTC::u2904<33,5100>),
+          avg,
+          std::greater<uint32_t>());
+      return (p - NTC::u2904<33,5100>);
    }
 
 };

@@ -48,11 +48,12 @@ int main()
       uint16_t model_number    = 0;
       uint16_t a_current       = 0;
       uint16_t m_current       = 0;
-      uint16_t m_resonance     = 18_kHz;
-      uint16_t a_resonance     = 18_kHz;
+      uint16_t m_resonance     = 20_kHz;
+      uint16_t a_resonance     = 20_kHz;
       uint16_t range_deviation = 200;
       uint16_t time            = 200_ms;
       uint8_t  qty_changes     = 2;
+      uint8_t  every_degree    = 5;
       bool     m_control       = false;
       bool     deviation       = false;
    } flash;
@@ -61,7 +62,6 @@ int main()
         mcu::FLASH::Sector::_9
       , mcu::FLASH::Sector::_8
    >::make (&flash);
-
    
    decltype(auto) led_green = Pin::make<LED_green, mcu::PinMode::Output>();
    decltype(auto) led_red   = Pin::make<LED_red, mcu::PinMode::Output>();
@@ -75,7 +75,9 @@ int main()
       bool no_load       :1;
       bool overload      :1;
       bool connect       :1;
-      uint16_t           :8; //Bits 11:2 res: Reserved, must be kept cleared
+      bool research      :1;
+      bool end_research  :1;
+      uint16_t           :6; //Bits 11:2 res: Reserved, must be kept cleared
       bool is_alarm() { return overheat or no_load or overload; }
    }flags_03, flags_16;
 
@@ -134,11 +136,11 @@ int main()
    modbus_master_regs.power_03.disable          = true;
    modbus_master_regs.max_temp_03.disable       = true;
    modbus_master_regs.recovery_temp_03.disable  = true;
-   modbus_master_regs.temperatura_03.disable    = true;
-   modbus_master_regs.current_03.disable        = true;
-   modbus_master_regs.duty_cycle_03.disable     = true;
+   // modbus_master_regs.temperatura_03.disable    = true;
+   // modbus_master_regs.current_03.disable        = true;
+   // modbus_master_regs.duty_cycle_03.disable     = true;
 
-   decltype(auto) modbus_master = make_modbus_master <
+   volatile decltype(auto) modbus_master = make_modbus_master <
           mcu::Periph::USART2
         , TX_master
         , RX_master
@@ -160,12 +162,13 @@ int main()
       , flags_16
       , uart_set_03
       , uart_set_16
+      , adc
    );
 
    auto start = Button<Start>();
-   start.set_down_callback([&]{ modbus_master_regs.on ^= 1;});
+   start.set_down_callback([&]{ modbus_master_regs.on ^= 1; if(flags_03.manual) modbus_master_regs.frequency_16 = modbus_master_regs.frequency_03;});
    auto set   = Button<Set>();
-   set.set_down_callback([&]{modbus_master_regs.search ^= 1;});
+   set.set_down_callback([&]{modbus_master_regs.search ^= 1; if (flags_03.manual_tune) modbus_master_regs.frequency_16 = modbus_master_regs.frequency_03;});
 
    Timer blink{500_ms};
 
@@ -178,6 +181,14 @@ int main()
          modbus_master_regs.frequency_16.disable = false;
       else 
          modbus_master_regs.frequency_16.disable = true;
+
+      if (flags_16.research) {
+         modbus_master_regs.flags_16.disable = false;
+      }
+      
+      if (flags_03.end_research) {
+         flags_16.research = false;
+      }
 
       // uart_set_03 = modbus_master_regs.uart_set_03;
       // uart_set_16.res = 0;

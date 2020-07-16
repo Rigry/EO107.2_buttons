@@ -6,7 +6,6 @@
 #include "set_screen.h"
 #include "screens.h"
 #include "button.h"
-#include "encoder_rotary.h"
 
 template<class Pins, class Flash_data, class Regs, class Flags, class UART, size_t qty_lines = 4, size_t size_line = 20>
 struct Menu : TickSubscriber {
@@ -21,6 +20,7 @@ struct Menu : TickSubscriber {
    Flags& flags_16;
    UART& uart_set_03;
    UART& uart_set_16;
+   ADC_& adc;
 
 
    Screen* current_screen {&main_screen};
@@ -46,10 +46,11 @@ struct Menu : TickSubscriber {
       , Flags& flags_16
       , UART& uart_set_03
       , UART& uart_set_16
+      , ADC_& adc
    ) : up{up}, down{down}, enter{enter} 
       , flash{flash}, modbus_master_regs{modbus_master_regs}
       , flags_03{flags_03}, flags_16{flags_16}
-      , uart_set_03{uart_set_03}, uart_set_16{uart_set_16}
+      , uart_set_03{uart_set_03}, uart_set_16{uart_set_16}, adc{adc}
    {
       tick_subscribe();
       current_screen->init();
@@ -63,6 +64,8 @@ struct Menu : TickSubscriber {
         , modbus_master_regs
         , flags_03
         , flags_16
+        , adc
+        , flash.every_degree
    };
 
     Select_screen<6> main_select {
@@ -71,10 +74,7 @@ struct Menu : TickSubscriber {
         , Line {"Параметры"      ,[this]{change_screen(option_select); modbus_master_regs.power_03.disable = false;
                                                                        modbus_master_regs.work_frequency_03.disable = false;
                                                                        modbus_master_regs.max_current_03.disable    = false; }}
-        , Line {"Настройка"      ,[this]{ if (flags_03.search)
-                                             change_screen(select_tune_end);
-                                          else
-                                             change_screen(select_tune_begin);}}
+        , Line {"Режим настройки",[this]{change_screen(tune_set);     }}
         , Line {"Режим работы"   ,[this]{change_screen(mode_set);     }}
         , Line {"Конфигурация"   ,[this]{change_screen(config_select);}}
         , Line {"Аварии"         ,[this]{change_screen(alarm_select); }}
@@ -85,7 +85,7 @@ struct Menu : TickSubscriber {
    uint8_t power{0};
    uint16_t work_frequency{0};
    uint16_t max_current{0};
-   Select_screen<4> option_select {
+   Select_screen<5> option_select {
           lcd, buttons_events
         , Out_callback    {       [this]{ modbus_master_regs.power_16.disable = true; 
                                           modbus_master_regs.power_03.disable = true;
@@ -96,8 +96,9 @@ struct Menu : TickSubscriber {
         , Line {"Mощность"       ,[this]{ power = modbus_master_regs.power_03;                   change_screen(duty_cycle_set); }}
         , Line {"Макс. ток"      ,[this]{ max_current = modbus_master_regs.max_current_03;       change_screen(max_current_set);}}
         , Line {"Рабочая частота",[this]{ work_frequency = modbus_master_regs.work_frequency_03; change_screen(frequency_set);  }}
-        , Line {"Температура"    ,[this]{ modbus_master_regs.max_temp_03.disable      = false;
+        , Line {"Темп.генератора",[this]{ modbus_master_regs.max_temp_03.disable      = false;
                                           modbus_master_regs.recovery_temp_03.disable = false;   change_screen(temp_select);    }}
+        , Line {"Уставка"        ,[this]{ change_screen(set_point); }}
    };
 
    uint8_t mode_ {flash.m_control};
@@ -118,21 +119,6 @@ struct Menu : TickSubscriber {
    };
 
    bool tune_ {flags_03.manual_tune};
-   Select_screen<2> select_tune_begin {
-          lcd, buttons_events
-        , Out_callback    {        [this]{ change_screen(main_select); modbus_master_regs.flags_16.disable = true;  }}
-        , Line {"Режим настройки" ,[this]{ tune_ = flags_03.manual_tune; change_screen(tune_set);       }}
-        , Line {"Начать"          ,[this]{ modbus_master_regs.search = true; modbus_master_regs.search.disable = false;
-                                           change_screen(main_screen);    }}
-   };
-
-   Select_screen<2> select_tune_end {
-          lcd, buttons_events
-        , Out_callback    {        [this]{ change_screen(main_select); modbus_master_regs.flags_16.disable = true;  }}
-        , Line {"Режим настройки" ,[this]{ tune_ = flags_03.manual_tune; change_screen(tune_set);       }}
-        , Line {"Закончить"       ,[this]{ modbus_master_regs.search = false; modbus_master_regs.search.disable = false;
-                                           change_screen(main_screen);    }}
-   };
    
    Set_screen<bool, tune_to_string> tune_set {
         lcd, buttons_events
@@ -140,17 +126,13 @@ struct Menu : TickSubscriber {
       , ""
       , tune_
       , Min<bool>{false}, Max<bool>{true}
-      , Out_callback    { [this]{ if (flags_03.search)
-                                    change_screen(select_tune_end);
-                                  else
-                                    change_screen(select_tune_begin); }}
+      , Out_callback    { [this]{change_screen(main_select);}}
       , Enter_callback  { [this]{ 
             flags_16.manual_tune = tune_;
             modbus_master_regs.flags_16.disable = false;
-            if (flags_03.search)
-               change_screen(select_tune_end);
-            else
-               change_screen(select_tune_begin);
+            modbus_master_regs.frequency_16.disable = flags_16.manual_tune ? false : true;
+            modbus_master_regs.frequency_16 = modbus_master_regs.frequency_03;
+            change_screen(main_select);
       }}
    };
    
@@ -238,6 +220,19 @@ struct Menu : TickSubscriber {
             modbus_master_regs.recovery_temp_16 = recovery;
             modbus_master_regs.recovery_temp_16.disable = false;
             change_screen(temp_select); }}
+   };
+
+   uint8_t every_degree{flash.every_degree};
+   Set_screen<uint8_t> set_point {
+        lcd, buttons_events
+      , "Уставка"
+      , " С"
+      , every_degree
+      , Min<uint8_t>{2}, Max<uint8_t>{30}
+      , Out_callback    { [this]{ change_screen(option_select); }}
+      , Enter_callback  { [this]{ 
+            flash.every_degree = every_degree;
+            change_screen(option_select); }}
    };
 
    Select_screen<2> alarm_select {
