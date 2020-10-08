@@ -124,6 +124,8 @@ struct Main_screen : Screen {
       eventers.up    ([this]{ modbus_master_regs.frequency_16 += /*(modbus_master_regs.flags_03.manual_tune and modbus_master_regs.flags_03.search) or modbus_master_regs.flags_03.manual ? */ 10;});
       eventers.down  ([this]{ modbus_master_regs.frequency_16 += /*(modbus_master_regs.flags_03.manual_tune and modbus_master_regs.flags_03.search) or modbus_master_regs.flags_03.manual ? */-10;});
       eventers.out   ([this]{  });
+      eventers.increment_up   ([this](auto i){   up(i); });
+      eventers.increment_down ([this](auto i){ down(i); });
       lcd.clear();
       lcd.line(0) << "F=";
       lcd.line(0).cursor(11) << "P=";
@@ -138,6 +140,9 @@ struct Main_screen : Screen {
       eventers.up    (nullptr);
       eventers.down  (nullptr);
       eventers.out   (nullptr);
+
+      eventers.increment_up  (nullptr);
+      eventers.increment_down(nullptr);
    }
 
    void draw() override {
@@ -189,6 +194,16 @@ struct Main_screen : Screen {
           std::greater<uint32_t>());
       return (p - NTC::u2904<33,5100>);
    }
+
+   void down (int increment = 10) 
+    {
+        modbus_master_regs.frequency_16 -= increment;
+    }
+
+    void up (int increment = 10)
+    {
+        modbus_master_regs.frequency_16 += increment;
+    }
 
 };
 

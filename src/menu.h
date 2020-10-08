@@ -110,7 +110,7 @@ struct Menu : TickSubscriber {
       , Min<uint8_t>{0}, Max<uint8_t>{::mode.size() - 1}
       , Out_callback    { [this]{ change_screen(main_select); }}
       , Enter_callback  { [this]{ 
-            flags_16.manual = mode_;
+            flash.m_control = flags_16.manual = mode_;
             modbus_master_regs.flags_16.disable = false;
             modbus_master_regs.frequency_16.disable = flags_16.manual ? false : true;
             modbus_master_regs.frequency_16 = modbus_master_regs.frequency_03;
@@ -118,8 +118,7 @@ struct Menu : TickSubscriber {
       }}
    };
 
-   bool tune_ {flags_03.manual_tune};
-   
+   bool tune_ {flash.m_search};
    Set_screen<bool, tune_to_string> tune_set {
         lcd, buttons_events
       , "Настройка"
@@ -128,7 +127,7 @@ struct Menu : TickSubscriber {
       , Min<bool>{false}, Max<bool>{true}
       , Out_callback    { [this]{change_screen(main_select);}}
       , Enter_callback  { [this]{ 
-            flags_16.manual_tune = tune_;
+            flash.m_search = flags_16.manual_tune = tune_;
             modbus_master_regs.flags_16.disable = false;
             modbus_master_regs.frequency_16.disable = flags_16.manual_tune ? false : true;
             modbus_master_regs.frequency_16 = modbus_master_regs.frequency_03;

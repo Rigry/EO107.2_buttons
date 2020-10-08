@@ -55,6 +55,7 @@ int main()
       uint8_t  qty_changes     = 2;
       uint8_t  every_degree    = 5;
       bool     m_control       = false;
+      bool     m_search        = false;
       bool     deviation       = false;
    } flash;
    
@@ -172,10 +173,11 @@ int main()
 
    Timer blink{500_ms};
 
-
+   flags_16.manual = flash.m_control;
+   flags_16.manual_tune = flash.m_search;
    
    while(1){
-      flags_03 = modbus_master_regs.flags_03;
+      
       modbus_master_regs.flags_16 = flags_16;
       if ((flags_03.manual_tune and flags_03.search) or (flags_03.manual and not flags_03.search))
          modbus_master_regs.frequency_16.disable = false;
@@ -195,6 +197,7 @@ int main()
       // uart_set_16.parity = USART::Parity::even;
       // modbus_master_regs.uart_set_16 = uart_set_16;
       // if (not flags_03.search and modbus_master_regs.search) modbus_master_regs.search = false; // если закончен поиск, запрет команды на
+      flags_03 = modbus_master_regs.flags_03;
       modbus_master();
       if (flags_03.on and flags_03.search and not flags_03.is_alarm())
          led_green ^= blink.event();
