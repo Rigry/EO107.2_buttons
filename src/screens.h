@@ -10,7 +10,8 @@
 
 constexpr auto info = std::array {
     "А",
-    "П"  
+    "П",
+    "Д"
 };
 
 constexpr std::string_view info_to_string(int i) {
@@ -54,13 +55,13 @@ constexpr std::string_view search_to_string(int i) {
     return search[i];
 }
 
-constexpr auto deviation = std::array {
+constexpr auto off_on = std::array {
     "отключить",
     "включить"
 };
 
-constexpr std::string_view deviation_to_string(int i) {
-    return deviation[i];
+constexpr std::string_view off_on_to_string(int i) {
+    return off_on[i];
 }
 
 constexpr auto boudrate = std::array {

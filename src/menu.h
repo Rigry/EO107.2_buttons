@@ -101,13 +101,13 @@ struct Menu : TickSubscriber {
         , Line {"Уставка"        ,[this]{ change_screen(set_point); }}
    };
 
-   uint8_t mode_ {flash.m_control};
-   Set_screen<uint8_t, mode_to_string> mode_set {
+   bool mode_ {flash.m_control};
+   Set_screen<bool, mode_to_string> mode_set {
         lcd, buttons_events
       , "Выбор режима"
       , ""
       , mode_
-      , Min<uint8_t>{0}, Max<uint8_t>{::mode.size() - 1}
+      , Min<bool>{0}, Max<bool>{::mode.size() - 1}
       , Out_callback    { [this]{ change_screen(main_select); }}
       , Enter_callback  { [this]{ 
             flash.m_control = flags_16.manual = mode_;
@@ -245,30 +245,37 @@ struct Menu : TickSubscriber {
 
    Select_screen<2> config_select {
           lcd, buttons_events
-        , Out_callback    { [this]{change_screen(main_select);     }}
+        , Out_callback    { [this]{ modbus_master_regs.range_deviation.disable = true;
+                                    modbus_master_regs.qty_changes.disable     = true;
+                                    modbus_master_regs.time.disable            = true;
+                                    change_screen(main_select);    }}
         , Line {"Девиация" ,[this]{change_screen(deviation_select);}}
-        , Line {"Booster" ,[]{}}
+        , Line {"Booster"  ,[this]{change_screen(boost_select);  }}
    };
 
    Select_screen<4> deviation_select {
           lcd, buttons_events
-        , Out_callback        { [this]{change_screen(config_select);}}
+        , Out_callback        { [this]{modbus_master_regs.range_deviation.disable = true;
+                                       modbus_master_regs.qty_changes.disable = true;
+                                       modbus_master_regs.time.disable = true;
+                                       change_screen(config_select);}}
         , Line {"Вкл/Откл"     ,[this]{change_screen(deviation_set);}}
         , Line {"Диапазон"     ,[this]{change_screen(range_deviation_set);}}
         , Line {"Кол-во изм."  ,[this]{change_screen(qty_changes_set);}}
         , Line {"Время изм."   ,[this]{change_screen(time_set);}}
    };
 
-   uint8_t deviation {flash.deviation};
-   Set_screen<uint8_t, deviation_to_string> deviation_set {
+   bool deviation {flash.deviation};
+   Set_screen<bool, off_on_to_string> deviation_set {
         lcd, buttons_events
       , "Вкл/Откл"
       , ""
       , deviation
-      , Min<uint8_t>{0}, Max<uint8_t>{::deviation.size() - 1}
+      , Min<bool>{0}, Max<bool>{::off_on.size() - 1}
       , Out_callback    { [this]{ change_screen(deviation_select); }}
-      , Enter_callback  { [this]{ 
-         flash.deviation = deviation;
+      , Enter_callback  { [this]{
+         modbus_master_regs.flags_16.disable = false;
+         flash.deviation = flags_16.deviation = deviation;
             change_screen(deviation_select);
       }}
    };
@@ -282,7 +289,8 @@ struct Menu : TickSubscriber {
       , Min<uint16_t>{0}, Max<uint16_t>{4000}
       , Out_callback    { [this]{ change_screen(deviation_select); }}
       , Enter_callback  { [this]{ 
-         flash.range_deviation = range_deviation;
+         flash.range_deviation = modbus_master_regs.range_deviation = range_deviation;
+         modbus_master_regs.range_deviation.disable = false;
             change_screen(deviation_select); }}
    };
 
@@ -295,7 +303,8 @@ struct Menu : TickSubscriber {
       , Min<uint8_t>{2}, Max<uint8_t>{100}
       , Out_callback    { [this]{ change_screen(deviation_select); }}
       , Enter_callback  { [this]{ 
-         flash.qty_changes = qty_changes;
+         flash.qty_changes = modbus_master_regs.qty_changes = qty_changes;
+         modbus_master_regs.qty_changes.disable = false;
             change_screen(deviation_select); }}
    };
 
@@ -308,8 +317,62 @@ struct Menu : TickSubscriber {
       , Min<uint16_t>{100}, Max<uint16_t>{2000}
       , Out_callback    { [this]{ change_screen(deviation_select); }}
       , Enter_callback  { [this]{ 
-         flash.time = time;
+         flash.time = modbus_master_regs.time = time;
+         modbus_master_regs.time.disable = false;
             change_screen(deviation_select); }}
+   };
+
+   Select_screen<3> boost_select {
+          lcd, buttons_events
+        , Out_callback        { [this]{modbus_master_regs.work_time.disable  = true;
+                                       modbus_master_regs.pause_time.disable = true;
+                                       change_screen(config_select);}}
+        , Line {"Вкл/Откл"     ,[this]{change_screen(boost_set);}}
+        , Line {"Время работы" ,[this]{change_screen(work_time_set);}}
+        , Line {"Время паузы"  ,[this]{change_screen(pause_time_set);}}
+   };
+
+   bool boost {flash.boost};
+   Set_screen<bool, off_on_to_string> boost_set {
+        lcd, buttons_events
+      , "Вкл/Откл"
+      , ""
+      , boost
+      , Min<bool>{0}, Max<bool>{::off_on.size() - 1}
+      , Out_callback    { [this]{ change_screen(boost_select); }}
+      , Enter_callback  { [this]{
+         modbus_master_regs.flags_16.disable = false;
+         flash.boost = flags_16.boost = boost;
+            change_screen(boost_select);
+      }}
+   };
+
+   uint16_t work_time{flash.work_time};
+   Set_screen<uint16_t> work_time_set {
+        lcd, buttons_events
+      , "Время работы"
+      , " мс"
+      , work_time
+      , Min<uint16_t>{100}, Max<uint16_t>{10000}
+      , Out_callback    { [this]{ change_screen(boost_select); }}
+      , Enter_callback  { [this]{ 
+         flash.work_time = modbus_master_regs.work_time = work_time;
+         modbus_master_regs.work_time.disable = false;
+            change_screen(boost_select); }}
+   };
+
+   uint16_t pause_time{flash.pause_time};
+   Set_screen<uint16_t> pause_time_set {
+        lcd, buttons_events
+      , "Время паузы"
+      , " мс"
+      , pause_time
+      , Min<uint16_t>{100}, Max<uint16_t>{10000}
+      , Out_callback    { [this]{ change_screen(boost_select); }}
+      , Enter_callback  { [this]{ 
+         flash.pause_time = modbus_master_regs.pause_time = pause_time;
+         modbus_master_regs.pause_time.disable = false;
+            change_screen(boost_select); }}
    };
 
    uint16_t address{0};

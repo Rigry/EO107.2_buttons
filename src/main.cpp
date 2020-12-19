@@ -52,11 +52,14 @@ int main()
       uint16_t a_resonance     = 20_kHz;
       uint16_t range_deviation = 200;
       uint16_t time            = 200_ms;
+      uint16_t work_time       = 1000_ms;
+      uint16_t pause_time      = 1000_ms;
       uint8_t  qty_changes     = 2;
       uint8_t  every_degree    = 5;
       bool     m_control       = false;
       bool     m_search        = false;
       bool     deviation       = false;
+      bool     boost           = false;
    } flash;
    
    [[maybe_unused]] auto _ = Flash_updater<
@@ -78,9 +81,11 @@ int main()
       bool connect       :1;
       bool research      :1;
       bool end_research  :1;
-      uint16_t           :6; //Bits 11:2 res: Reserved, must be kept cleared
+      bool deviation     :1;
+      bool boost         :1;
+      uint16_t           :4; //Bits 12:15 res: Reserved, must be kept cleared
       bool is_alarm() { return overheat or no_load or overload; }
-   }flags_03, flags_16;
+   }flags_03{0}, flags_16{0};
 
    using UART = UART::Settings;
    UART uart_set_03, uart_set_16;
@@ -98,7 +103,12 @@ int main()
       Register<1, Modbus_function::write_16, 7>  max_current_16;
       Register<1, Modbus_function::write_16, 8>  max_temp_16;
       Register<1, Modbus_function::write_16, 9>  recovery_temp_16;
-      Register<1, Modbus_function::write_16, 10, Flags> flags_16;
+      Register<1, Modbus_function::write_16, 10>  range_deviation;
+      Register<1, Modbus_function::write_16, 11>  qty_changes;
+      Register<1, Modbus_function::write_16, 12>  time;
+      Register<1, Modbus_function::write_16, 13>  work_time;
+      Register<1, Modbus_function::write_16, 14>  pause_time;
+      Register<1, Modbus_function::write_16, 15, Flags> flags_16;
       // регистры на чтение
       Register<1, Modbus_function::read_03, 2, UART> uart_set_03;
       Register<1, Modbus_function::read_03, 3>  modbus_address_03;
@@ -127,6 +137,11 @@ int main()
    modbus_master_regs.max_current_16.disable    = true;
    modbus_master_regs.max_temp_16.disable       = true;
    modbus_master_regs.recovery_temp_16.disable  = true;
+   modbus_master_regs.range_deviation.disable   = true;
+   modbus_master_regs.qty_changes.disable       = true;
+   modbus_master_regs.time.disable              = true;
+   modbus_master_regs.work_time.disable         = true;
+   modbus_master_regs.pause_time.disable        = true;
    modbus_master_regs.flags_16.disable          = true;
    // запросы отправляются только при необходимости прочитать значение
    modbus_master_regs.uart_set_03.disable       = true;
@@ -184,9 +199,9 @@ int main()
       else 
          modbus_master_regs.frequency_16.disable = true;
 
-      if (flags_16.research) {
-         modbus_master_regs.flags_16.disable = false;
-      }
+      // if (flags_16.research) {
+      //    modbus_master_regs.flags_16.disable = false;
+      // }
       
       if (flags_03.end_research) {
          flags_16.research = false;
