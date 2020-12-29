@@ -7,7 +7,7 @@
 #include "screens.h"
 #include "button.h"
 
-template<class Pins, class Flash_data, class Regs, class Flags, class UART, size_t qty_lines = 4, size_t size_line = 20>
+template<class Pins, class Flash_data, class Regs, class Flags, /*class UART,*/ size_t qty_lines = 4, size_t size_line = 20>
 struct Menu : TickSubscriber {
    String_buffer lcd {};
    HD44780& hd44780 {HD44780::make(Pins{}, lcd.get_buffer())};
@@ -18,8 +18,8 @@ struct Menu : TickSubscriber {
    Regs& modbus_master_regs;
    Flags& flags_03;
    Flags& flags_16;
-   UART& uart_set_03;
-   UART& uart_set_16;
+   // UART& uart_set_03;
+   // UART& uart_set_16;
    ADC_& adc;
 
 
@@ -44,13 +44,13 @@ struct Menu : TickSubscriber {
       , Regs& modbus_master_regs
       , Flags& flags_03
       , Flags& flags_16
-      , UART& uart_set_03
-      , UART& uart_set_16
+      // , UART& uart_set_03
+      // , UART& uart_set_16
       , ADC_& adc
    ) : up{up}, down{down}, enter{enter} 
       , flash{flash}, modbus_master_regs{modbus_master_regs}
       , flags_03{flags_03}, flags_16{flags_16}
-      , uart_set_03{uart_set_03}, uart_set_16{uart_set_16}, adc{adc}
+      /*, uart_set_03{uart_set_03}, uart_set_16{uart_set_16}*/, adc{adc}
    {
       tick_subscribe();
       current_screen->init();
@@ -68,7 +68,7 @@ struct Menu : TickSubscriber {
         , flash.every_degree
    };
 
-    Select_screen<6> main_select {
+    Select_screen<4> main_select {
           lcd, buttons_events
         , Out_callback          { [this]{change_screen(main_screen);   modbus_master_regs.flags_16.disable = true;}}
         , Line {"Параметры"      ,[this]{change_screen(option_select); modbus_master_regs.power_03.disable = false;
@@ -77,9 +77,9 @@ struct Menu : TickSubscriber {
         , Line {"Режим настройки",[this]{change_screen(tune_set);     }}
         , Line {"Режим работы"   ,[this]{change_screen(mode_set);     }}
         , Line {"Конфигурация"   ,[this]{change_screen(config_select);}}
-        , Line {"Аварии"         ,[this]{change_screen(alarm_select); }}
-        , Line {"Настройки сети" ,[this]{change_screen(modbus_select); modbus_master_regs.modbus_address_03.disable = false;
-                                                                       modbus_master_regs.uart_set_03.disable = false;}}
+      //   , Line {"Аварии"         ,[this]{change_screen(alarm_select); }}
+      //   , Line {"Настройки сети" ,[this]{change_screen(modbus_select); modbus_master_regs.modbus_address_03.disable = false;
+      //                                                                  modbus_master_regs.uart_set_03.disable = false;}}
    };
 
    uint8_t power{0};
@@ -119,9 +119,9 @@ struct Menu : TickSubscriber {
    };
 
    bool tune_ {flash.m_search};
-   Set_screen<bool, tune_to_string> tune_set {
+   Set_screen<bool, mode_to_string> tune_set {
         lcd, buttons_events
-      , "Настройка"
+      , "Выбор режима"
       , ""
       , tune_
       , Min<bool>{false}, Max<bool>{true}
@@ -234,14 +234,14 @@ struct Menu : TickSubscriber {
             change_screen(option_select); }}
    };
 
-   Select_screen<2> alarm_select {
-          lcd, buttons_events
-        , Out_callback    { [this]{ change_screen(main_select);  }}
-        , Line {"Посмотреть",[]{}}
-        , Line {"Сбросить"  ,[this]{/*generator.flags.no_load = generator.flags.overload = false;
-                                    change_screen(main_select); */}}
+   // Select_screen<2> alarm_select {
+   //        lcd, buttons_events
+   //      , Out_callback    { [this]{ change_screen(main_select);  }}
+   //      , Line {"Посмотреть",[]{}}
+   //      , Line {"Сбросить"  ,[this]{/*generator.flags.no_load = generator.flags.overload = false;
+   //                                  change_screen(main_select); */}}
 
-   };
+   // };
 
    Select_screen<2> config_select {
           lcd, buttons_events
@@ -375,32 +375,32 @@ struct Menu : TickSubscriber {
             change_screen(boost_select); }}
    };
 
-   uint16_t address{0};
-   uint16_t boudrate_ {0};
-   Select_screen<4> modbus_select {
-        lcd, buttons_events
-      , Out_callback        {     [this]{modbus_master_regs.modbus_address_03.disable = true;
-                                         modbus_master_regs.modbus_address_16.disable = true;
-                                         modbus_master_regs.uart_set_03.disable       = true;
-                                         modbus_master_regs.uart_set_16.disable       = true; change_screen(main_select) ;}}
-      , Line {"Адрес"            ,[this]{address = modbus_master_regs.modbus_address_03;      change_screen(address_set) ;}}
-      , Line {"Скорость"         ,[this]{boudrate_ = uint16_t(uart_set_03.baudrate);          /*change_screen(boudrate_set);*/}}
-      , Line {"Проверка на чет." ,[this]{}}
-      , Line {"Кол-во стоп-бит"  ,[this]{}}
-   };
+   // uint16_t address{0};
+   // uint16_t boudrate_ {0};
+   // Select_screen<4> modbus_select {
+   //      lcd, buttons_events
+   //    , Out_callback        {     [this]{modbus_master_regs.modbus_address_03.disable = true;
+   //                                       modbus_master_regs.modbus_address_16.disable = true;
+   //                                       modbus_master_regs.uart_set_03.disable       = true;
+   //                                       modbus_master_regs.uart_set_16.disable       = true; change_screen(main_select) ;}}
+   //    , Line {"Адрес"            ,[this]{address = modbus_master_regs.modbus_address_03;      change_screen(address_set) ;}}
+   //    , Line {"Скорость"         ,[this]{boudrate_ = uint16_t(uart_set_03.baudrate);          /*change_screen(boudrate_set);*/}}
+   //    , Line {"Проверка на чет." ,[this]{}}
+   //    , Line {"Кол-во стоп-бит"  ,[this]{}}
+   // };
 
-   Set_screen<uint16_t> address_set {
-        lcd, buttons_events
-      , "Адрес modbus"
-      , ""
-      , address
-      , Min<uint16_t>{1}, Max<uint16_t>{255}
-      , Out_callback    { [this]{ change_screen(modbus_select);  }}
-      , Enter_callback  { [this]{ 
-            modbus_master_regs.modbus_address_16 = address;
-            modbus_master_regs.modbus_address_16.disable = false;
-            change_screen(modbus_select);}}
-   };
+   // Set_screen<uint16_t> address_set {
+   //      lcd, buttons_events
+   //    , "Адрес modbus"
+   //    , ""
+   //    , address
+   //    , Min<uint16_t>{1}, Max<uint16_t>{255}
+   //    , Out_callback    { [this]{ change_screen(modbus_select);  }}
+   //    , Enter_callback  { [this]{ 
+   //          modbus_master_regs.modbus_address_16 = address;
+   //          modbus_master_regs.modbus_address_16.disable = false;
+   //          change_screen(modbus_select);}}
+   // };
 
    
    // Set_screen<uint16_t, boudrate_to_string> boudrate_set {

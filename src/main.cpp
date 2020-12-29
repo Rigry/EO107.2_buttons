@@ -87,8 +87,8 @@ int main()
       bool is_alarm() { return overheat or no_load or overload; }
    }flags_03{0}, flags_16{0};
 
-   using UART = UART::Settings;
-   UART uart_set_03, uart_set_16;
+   // using UART = UART::Settings;
+   // UART uart_set_03, uart_set_16;
 
    struct {
       // регистры управления
@@ -176,8 +176,8 @@ int main()
       , modbus_master_regs
       , flags_03
       , flags_16
-      , uart_set_03
-      , uart_set_16
+      // , uart_set_03
+      // , uart_set_16
       , adc
    );
 
@@ -187,11 +187,19 @@ int main()
    set.set_down_callback([&]{modbus_master_regs.search ^= 1; if (flags_03.manual_tune) modbus_master_regs.frequency_16 = modbus_master_regs.frequency_03;});
 
    Timer blink{500_ms};
+   // Timer auto_start{3_s};
 
    flags_16.manual = flash.m_control;
    flags_16.manual_tune = flash.m_search;
    
    while(1){
+      
+      // if (auto_start.done()) {
+      //    auto_start.stop();
+      //    modbus_master_regs.on = 1; 
+         // if(flags_03.manual) 
+         //    modbus_master_regs.frequency_16 = modbus_master_regs.frequency_03;
+      // }
       
       modbus_master_regs.flags_16 = flags_16;
       if ((flags_03.manual_tune and flags_03.search) or (flags_03.manual and not flags_03.search))
@@ -199,9 +207,9 @@ int main()
       else 
          modbus_master_regs.frequency_16.disable = true;
 
-      // if (flags_16.research) {
-      //    modbus_master_regs.flags_16.disable = false;
-      // }
+      if (flags_16.research) {
+         modbus_master_regs.flags_16.disable = false;
+      }
       
       if (flags_03.end_research) {
          flags_16.research = false;

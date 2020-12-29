@@ -10,8 +10,7 @@
 
 constexpr auto info = std::array {
     "А",
-    "П",
-    "Д"
+    "П"
 };
 
 constexpr std::string_view info_to_string(int i) {
@@ -27,34 +26,6 @@ constexpr std::string_view mode_to_string(int i) {
     return mode[i];
 }
 
-constexpr auto tune = std::array {
-    "Автоматическая",
-    "Пользовательская"  
-};
-
-constexpr std::string_view tune_to_string(int i) {
-    return tune[i];
-}
-
-constexpr auto tune_control = std::array {
-    "Начать",
-    "Закончить"  
-};
-
-constexpr std::string_view tune_control_to_string(int i) {
-    return tune_control[i];
-}
-
-constexpr auto search = std::array {
-    "да",
-    "нет"  
-};
-
-
-constexpr std::string_view search_to_string(int i) {
-    return search[i];
-}
-
 constexpr auto off_on = std::array {
     "отключить",
     "включить"
@@ -64,20 +35,22 @@ constexpr std::string_view off_on_to_string(int i) {
     return off_on[i];
 }
 
-constexpr auto boudrate = std::array {
-    "9600",
-    "14400",
-    "19200",
-    "28800",
-    "38400",
-    "57600",
-    "76800",
-    "115200"
-};
+// constexpr auto boudrate = std::array {
+//     "9600",
+//     "14400",
+//     "19200",
+//     "28800",
+//     "38400",
+//     "57600",
+//     "76800",
+//     "115200"
+// };
 
-constexpr std::string_view boudrate_to_string(int i) {
-    return boudrate[i];
-}
+// constexpr std::string_view boudrate_to_string(int i) {
+//     return boudrate[i];
+// }
+
+// для воды
 
 constexpr auto conversion_on_channel {96};
 struct ADC_{
@@ -93,9 +66,9 @@ struct Main_screen : Screen {
    Regs& modbus_master_regs;
    Flags& flags_03;
    Flags& flags_16;
-   ADC_& adc;
-   uint8_t& every_degree{0};
-   uint16_t temperature{0}; 
+   ADC_& adc; // для воды
+   uint8_t& every_degree{0}; // для воды
+   uint16_t temperature{0}; // для воды
    uint16_t last_temp{0};
    Timer blink{500_ms};
    bool blink_{false};
@@ -131,7 +104,7 @@ struct Main_screen : Screen {
       lcd.line(0) << "F=";
       lcd.line(0).cursor(11) << "P=";
       lcd.line(1) << "I=";
-      lcd.line(1).cursor(10).width(2) << temperature << "C";
+      lcd.line(1).cursor(10).width(2) << modbus_master_regs.temperatura_03 << "C";
       lcd.line(1).cursor(14) << ::info[flags_03.manual_tune];
       lcd.line(1).cursor(15) << ::info[flags_03.manual];
    }
@@ -149,7 +122,7 @@ struct Main_screen : Screen {
    void draw() override {
       lcd.line(0).cursor(2).div_1000(modbus_master_regs.frequency_03) << "кГц";
       lcd.line(0).cursor(13).width(2) << modbus_master_regs.duty_cycle_03 << '%';
-      lcd.line(1).cursor(10).width(2) << temperature << "C ";
+      lcd.line(1).cursor(10).width(2) << modbus_master_regs.temperatura_03 << "C ";
       temperature = temp(adc.temperatura);
       if (abs(temperature - last_temp) >= every_degree) {
           flags_16.research = true;
