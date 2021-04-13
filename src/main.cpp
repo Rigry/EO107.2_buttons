@@ -60,6 +60,7 @@ int main()
       bool     m_search        = false;
       bool     deviation       = false;
       bool     boost           = false;
+      bool     attenuation     = false;
    } flash;
    
    [[maybe_unused]] auto _ = Flash_updater<
@@ -83,7 +84,8 @@ int main()
       bool end_research  :1;
       bool deviation     :1;
       bool boost         :1;
-      uint16_t           :4; //Bits 12:15 res: Reserved, must be kept cleared
+      bool attenuation   :1;
+      uint16_t           :3; //Bits 13:15 res: Reserved, must be kept cleared
       bool is_alarm() { return overheat or no_load or overload; }
    }flags_03{0}, flags_16{0};
 
@@ -100,15 +102,16 @@ int main()
       Register<1, Modbus_function::write_16, 4>  frequency_16;
       Register<1, Modbus_function::write_16, 5>  work_frequency_16;
       Register<1, Modbus_function::write_16, 6>  power_16;
-      Register<1, Modbus_function::write_16, 7>  max_current_16;
-      Register<1, Modbus_function::write_16, 8>  max_temp_16;
-      Register<1, Modbus_function::write_16, 9>  recovery_temp_16;
-      Register<1, Modbus_function::write_16, 10>  range_deviation;
-      Register<1, Modbus_function::write_16, 11>  qty_changes;
-      Register<1, Modbus_function::write_16, 12>  time;
-      Register<1, Modbus_function::write_16, 13>  work_time;
-      Register<1, Modbus_function::write_16, 14>  pause_time;
-      Register<1, Modbus_function::write_16, 15, Flags> flags_16;
+      Register<1, Modbus_function::write_16, 7>  work_current_16;
+      Register<1, Modbus_function::write_16, 8>  max_current_16;
+      Register<1, Modbus_function::write_16, 9>  max_temp_16;
+      Register<1, Modbus_function::write_16, 10>  recovery_temp_16;
+      Register<1, Modbus_function::write_16, 11>  range_deviation;
+      Register<1, Modbus_function::write_16, 12>  qty_changes;
+      Register<1, Modbus_function::write_16, 13>  time;
+      Register<1, Modbus_function::write_16, 14>  work_time;
+      Register<1, Modbus_function::write_16, 15>  pause_time;
+      Register<1, Modbus_function::write_16, 16, Flags> flags_16;
       // регистры на чтение
       Register<1, Modbus_function::read_03, 2, UART> uart_set_03;
       Register<1, Modbus_function::read_03, 3>  modbus_address_03;
@@ -117,7 +120,7 @@ int main()
       Register<1, Modbus_function::read_03, 6>  work_frequency_03;
       Register<1, Modbus_function::read_03, 7>  frequency_03;
       // Register<1, Modbus_function::read_03, 8>  m_resonance_03;
-      // Register<1, Modbus_function::read_03, 9>  a_resonance_03;
+      Register<1, Modbus_function::read_03, 9>  work_current_03;
       Register<1, Modbus_function::read_03, 10> current_03;
       Register<1, Modbus_function::read_03, 11> max_current_03;
       // Register<1, Modbus_function::read_03, 12> a_current_03;
@@ -134,6 +137,7 @@ int main()
    modbus_master_regs.frequency_16.disable      = true;
    modbus_master_regs.work_frequency_16.disable = true;
    modbus_master_regs.power_16.disable          = true;
+   modbus_master_regs.work_current_16.disable   = true;
    modbus_master_regs.max_current_16.disable    = true;
    modbus_master_regs.max_temp_16.disable       = true;
    modbus_master_regs.recovery_temp_16.disable  = true;
@@ -148,6 +152,7 @@ int main()
    modbus_master_regs.modbus_address_03.disable = true;
    modbus_master_regs.power_03.disable          = true;
    modbus_master_regs.work_frequency_03.disable = true;
+   modbus_master_regs.work_current_03.disable   = true;
    modbus_master_regs.max_current_03.disable    = true;
    modbus_master_regs.power_03.disable          = true;
    modbus_master_regs.max_temp_03.disable       = true;

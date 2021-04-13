@@ -17,6 +17,15 @@ constexpr std::string_view info_to_string(int i) {
     return info[i];
 }
 
+constexpr auto attenuation = std::array {
+   "1",
+   "10"
+};
+
+constexpr std::string_view attenuation_to_string (int i) {
+   return attenuation[i];
+}
+
 constexpr auto mode = std::array {
     "Автоматический",
     "Пользовательский"  
@@ -124,10 +133,10 @@ struct Main_screen : Screen {
       lcd.line(0).cursor(13).width(2) << modbus_master_regs.duty_cycle_03 << '%';
       lcd.line(1).cursor(10).width(2) << temperature << "C ";
       temperature = temp(adc.temperatura);
-      if (abs(temperature - last_temp) >= every_degree) {
-          flags_16.research = true;
-          last_temp = temperature;
-      }
+      // if (abs(temperature - last_temp) >= every_degree) {
+      //     flags_16.research = true;
+      //     last_temp = temperature;
+      // }//для ванн
 
       if (modbus_master_regs.search) {
           blink_ ^= blink.event();

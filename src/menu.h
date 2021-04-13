@@ -73,7 +73,8 @@ struct Menu : TickSubscriber {
         , Out_callback          { [this]{change_screen(main_screen);   modbus_master_regs.flags_16.disable = true;}}
         , Line {"Параметры"      ,[this]{change_screen(option_select); modbus_master_regs.power_03.disable = false;
                                                                        modbus_master_regs.work_frequency_03.disable = false;
-                                                                       modbus_master_regs.max_current_03.disable    = false; }}
+                                                                       modbus_master_regs.max_current_03.disable    = false;
+                                                                       modbus_master_regs.work_current_03.disable   = false; }}
         , Line {"Режим настройки",[this]{change_screen(tune_set);     }}
         , Line {"Режим работы"   ,[this]{change_screen(mode_set);     }}
         , Line {"Конфигурация"   ,[this]{change_screen(config_select);}}
@@ -85,19 +86,24 @@ struct Menu : TickSubscriber {
    uint8_t power{0};
    uint16_t work_frequency{0};
    uint16_t max_current{0};
-   Select_screen<5> option_select {
+   uint16_t work_current{0};
+   Select_screen<7> option_select {
           lcd, buttons_events
         , Out_callback    {       [this]{ modbus_master_regs.power_16.disable = true; 
                                           modbus_master_regs.power_03.disable = true;
                                           modbus_master_regs.work_frequency_16.disable = true;
                                           modbus_master_regs.work_frequency_03.disable = true;
                                           modbus_master_regs.max_current_16.disable    = true;
-                                          modbus_master_regs.max_current_03.disable    = true;   change_screen(main_select);    }}
+                                          modbus_master_regs.max_current_03.disable    = true;   
+                                          modbus_master_regs.work_current_16.disable   = true;
+                                          modbus_master_regs.work_current_03.disable   = true;   change_screen(main_select);    }}
         , Line {"Mощность"       ,[this]{ power = modbus_master_regs.power_03;                   change_screen(duty_cycle_set); }}
+        , Line {"Рабочий ток"    ,[this]{ work_current = modbus_master_regs.work_current_03;     change_screen(work_current_set);}}
         , Line {"Макс. ток"      ,[this]{ max_current = modbus_master_regs.max_current_03;       change_screen(max_current_set);}}
         , Line {"Рабочая частота",[this]{ work_frequency = modbus_master_regs.work_frequency_03; change_screen(frequency_set);  }}
         , Line {"Темп.генератора",[this]{ modbus_master_regs.max_temp_03.disable      = false;
                                           modbus_master_regs.recovery_temp_03.disable = false;   change_screen(temp_select);    }}
+        , Line {"Ослабление тока",[this]{ change_screen(attenuation_select); }}
         , Line {"Уставка"        ,[this]{ change_screen(set_point); }}
    };
 
@@ -145,6 +151,19 @@ struct Menu : TickSubscriber {
       , Enter_callback  { [this]{ 
             modbus_master_regs.power_16 = power;
             modbus_master_regs.power_16.disable = false;
+            change_screen(option_select); }}
+   };
+
+   Set_screen<uint16_t> work_current_set {
+        lcd, buttons_events
+      , "Рабочий ток"
+      , " mA"
+      , work_current
+      , Min<uint16_t>{0_mA}, Max<uint16_t>{10000_mA}
+      , Out_callback    { [this]{ change_screen(option_select);}}
+      , Enter_callback  { [this]{ 
+            modbus_master_regs.work_current_16 = work_current;
+            modbus_master_regs.work_current_16.disable = false;
             change_screen(option_select); }}
    };
 
@@ -232,6 +251,21 @@ struct Menu : TickSubscriber {
       , Enter_callback  { [this]{ 
             flash.every_degree = every_degree;
             change_screen(option_select); }}
+   };
+
+   bool attenuation_ {flash.attenuation};
+   Set_screen<bool, attenuation_to_string> attenuation_select {
+        lcd, buttons_events
+      , "Коэфф. ослабления"
+      , ""
+      , attenuation_
+      , Min<bool>{0}, Max<bool>{::attenuation.size() - 1}
+      , Out_callback    { [this]{ change_screen(option_select); }}
+      , Enter_callback  { [this]{ 
+            flash.attenuation = flags_16.attenuation = attenuation_;
+            modbus_master_regs.flags_16.disable = false;
+            change_screen(option_select);
+      }}
    };
 
    // Select_screen<2> alarm_select {
