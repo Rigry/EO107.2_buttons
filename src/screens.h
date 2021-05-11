@@ -113,7 +113,7 @@ struct Main_screen : Screen {
       lcd.line(0) << "F=";
       lcd.line(0).cursor(11) << "P=";
       lcd.line(1) << "I=";
-      lcd.line(1).cursor(10).width(2) << temperature << "C";
+      lcd.line(1).cursor(10).width(2) << modbus_master_regs.temperatura_03 << "C";
       lcd.line(1).cursor(14) << ::info[flags_03.manual_tune];
       lcd.line(1).cursor(15) << ::info[flags_03.manual];
    }
@@ -131,7 +131,7 @@ struct Main_screen : Screen {
    void draw() override {
       lcd.line(0).cursor(2).div_1000(modbus_master_regs.frequency_03) << "кГц";
       lcd.line(0).cursor(13).width(2) << modbus_master_regs.duty_cycle_03 << '%';
-      lcd.line(1).cursor(10).width(2) << temperature << "C ";
+      lcd.line(1).cursor(10).width(2) << modbus_master_regs.temperatura_03 << "C ";
       temperature = temp(adc.temperatura);
       // if (abs(temperature - last_temp) >= every_degree) {
       //     flags_16.research = true;

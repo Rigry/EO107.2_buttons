@@ -268,12 +268,12 @@ struct Menu : TickSubscriber {
       }}
    };
 
-   // Select_screen<2> alarm_select {
+   // Select_screen<1> alarm_select {
    //        lcd, buttons_events
    //      , Out_callback    { [this]{ change_screen(main_select);  }}
-   //      , Line {"Посмотреть",[]{}}
-   //      , Line {"Сбросить"  ,[this]{/*generator.flags.no_load = generator.flags.overload = false;
-   //                                  change_screen(main_select); */}}
+   //    //   , Line {"Посмотреть",[]{}}
+   //      , Line {"Сбросить"  ,[this]{flags_16.no_load = flags_16.overload = false;
+   //                                  change_screen(main_select);}}
 
    // };
 
