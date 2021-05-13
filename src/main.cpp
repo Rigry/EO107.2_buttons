@@ -186,6 +186,7 @@ int main()
       , adc
    );
 
+   modbus_master_regs.on ^= 1; if(flags_03.manual) modbus_master_regs.frequency_16 = modbus_master_regs.frequency_03;
    auto start = Button<Start>();
    start.set_down_callback([&]{ modbus_master_regs.on ^= 1; if(flags_03.manual) modbus_master_regs.frequency_16 = modbus_master_regs.frequency_03;});
    auto set   = Button<Set>();
